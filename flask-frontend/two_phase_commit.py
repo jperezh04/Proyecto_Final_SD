@@ -10,7 +10,7 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
     Retorna (success: bool, message: str, tx_id: str)
     """
     tx_id = str(uuid.uuid4())
-    print(f"\n🔁 Iniciando 2PC {tx_id}: {source_account} ({source_bank}) → {dest_account} ({dest_bank}) por {amount}")
+    print(f"\n Iniciando 2PC {tx_id}: {source_account} ({source_bank}) -> {dest_account} ({dest_bank}) por {amount}")
 
     # 1. Obtener stubs de ambos bancos
     try:
@@ -20,7 +20,9 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
         return False, f"Error conectando a los bancos: {e}", tx_id
 
     # 2. Fase PREPARE
-    print("📤 Enviando PREPARE...")
+    print("Enviando PREPARE...")
+    src_prep = None
+    dst_prep = None
     try:
         src_prep = src_stub.Prepare(bank_pb2.PrepareRequest(
             transaction_id=tx_id,
@@ -35,30 +37,43 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
             operation_type="credit"
         ), timeout=5)
     except grpc.RpcError as e:
-        print(f"❌ Error en PREPARE: {e.code()}")
-        # Si uno falla, abortamos el otro
-        if 'src_prep' in locals() and src_prep.vote:
-            src_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
-        return False, f"Prepare falló: {e.code()}", tx_id
+        print(f"Error en PREPARE: {e.code()}")
+        # Si uno fallo, abortamos el otro
+        if src_prep is not None and src_prep.vote:
+            try:
+                src_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
+            except Exception:
+                pass
+        if dst_prep is not None and dst_prep.vote:
+            try:
+                dst_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
+            except Exception:
+                pass
+        return False, f"Prepare fallo: {e.code()}", tx_id
 
     # 3. Verificar votos
     if not (src_prep.vote and dst_prep.vote):
-        print("❌ Uno de los bancos votó ABORT")
-        src_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
-        dst_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
-        return False, "Transacción abortada por uno de los bancos", tx_id
+        print("Uno de los bancos voto ABORT")
+        try:
+            src_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
+        except Exception:
+            pass
+        try:
+            dst_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
+        except Exception:
+            pass
+        return False, "Transaccion abortada por uno de los bancos", tx_id
 
     # 4. Fase COMMIT
-    print("✅ Todos votaron PREPARED, enviando COMMIT...")
+    print("Todos votaron PREPARED, enviando COMMIT...")
     try:
         src_commit = src_stub.Commit(bank_pb2.CommitRequest(transaction_id=tx_id), timeout=5)
         dst_commit = dst_stub.Commit(bank_pb2.CommitRequest(transaction_id=tx_id), timeout=5)
         if src_commit.success and dst_commit.success:
-            print(f"✅ Transacción {tx_id} completada exitosamente")
-            return True, "Transferencia completada con éxito", tx_id
+            print(f"Transaccion {tx_id} completada exitosamente")
+            return True, "Transferencia completada con exito", tx_id
         else:
-            # Esto no debería pasar si el prepare fue exitoso, pero por seguridad
             return False, "Fallo en la fase de commit", tx_id
     except Exception as e:
-        print(f"❌ Error en COMMIT: {e}")
+        print(f"Error en COMMIT: {e}")
         return False, f"Error en commit: {e}", tx_id

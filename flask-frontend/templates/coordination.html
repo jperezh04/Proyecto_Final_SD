@@ -155,14 +155,14 @@
 <div id="nodeActionMenu" style="position:absolute;display:none;z-index:60;min-width:180px;background:var(--color-surface-container);border:1px solid var(--color-outline-variant);border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.12);">
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="details">View Details</button>
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="force-election">Force Election</button>
-    <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="disconnect">Toggle Disconnect</button>
+    <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="disconnect">Toggle Pause</button>
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="refresh">Refresh Node</button>
 </div>
 {% endblock %}
+{% block scripts %}
 <script>
     window.__INITIAL_NODES__ = {{ nodes | tojson }};
     window.__INITIAL_COORDINATOR__ = {{ coordinator | tojson }};
 </script>
-{% block scripts %}
 <script src="{{ url_for('static', filename='js/coordination.js') }}"></script>
 {% endblock %}

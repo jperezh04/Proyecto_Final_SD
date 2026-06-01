@@ -38,15 +38,13 @@ def remove_pending(tx_id):
     if os.path.exists(path):
         os.remove(path)
 
+
 class BankService(bank_pb2_grpc.BankServiceServicer):
     def __init__(self):
         self.node_id = 2
         self.leader_id = None
         self.state = "FOLLOWER"
-        self.peers = {
-            3: "localhost:50051",
-            1: "localhost:50053"
-        }
+        self.peers = {3: "localhost:50051", 1: "localhost:50053"}
         self.heartbeat_interval = 3
         self.election_timeout = 6
         self.last_heartbeat_from_leader = time.time()
@@ -81,7 +79,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             stub = bank_pb2_grpc.BankServiceStub(channel)
             resp = stub.Heartbeat(bank_pb2.HeartbeatRequest(node_id=str(self.node_id)), timeout=1)
             return resp.alive
-        except:
+        except Exception:
             return False
 
     def _send_election(self, peer_id, address):
@@ -90,7 +88,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             stub = bank_pb2_grpc.BankServiceStub(channel)
             resp = stub.Election(bank_pb2.ElectionRequest(candidate_id=str(self.node_id)), timeout=1)
             return resp.acknowledged
-        except:
+        except Exception:
             return False
 
     def _send_coordinator(self, peer_id, address):
@@ -98,27 +96,29 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             channel = grpc.insecure_channel(address)
             stub = bank_pb2_grpc.BankServiceStub(channel)
             stub.Coordinator(bank_pb2.CoordinatorRequest(leader_id=str(self.node_id)), timeout=1)
-        except:
+        except Exception:
             pass
 
     def _heartbeat_loop(self):
+        """Leader sends heartbeats to all followers to assert its authority."""
         while True:
             time.sleep(self.heartbeat_interval)
             if self.manual_pause:
                 continue
-            if self.state == "FOLLOWER" and self.leader_id is not None:
-                leader_addr = self.peers.get(self.leader_id)
-                if leader_addr:
-                    self._send_heartbeat(self.leader_id, leader_addr)
+            if self.state == "LEADER":
+                for peer_id, addr in self.peers.items():
+                    self._send_heartbeat(peer_id, addr)
 
     def _election_check_loop(self):
+        """Followers check if leader heartbeat has timed out and start election if needed."""
         while True:
             time.sleep(1)
             if self.manual_pause:
                 continue
-            if self.state == "FOLLOWER" and self.leader_id is not None:
+            # Trigger election if we are a follower AND either no leader known or leader timed out
+            if self.state == "FOLLOWER":
                 if time.time() - self.last_heartbeat_from_leader > self.election_timeout:
-                    print(f"[{self.node_id}] Leader {self.leader_id} timeout. Starting election.")
+                    print(f"[{self.node_id}] Leader timeout. Starting election.")
                     self.start_election()
 
     def start_election(self):
@@ -159,7 +159,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         if self.manual_pause:
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             return bank_pb2.HeartbeatResponse()
-        if self.state == "FOLLOWER":
+        # Reset heartbeat timer whenever we receive a heartbeat (we are a follower)
+        if self.state != "LEADER":
             self.last_heartbeat_from_leader = time.time()
         return bank_pb2.HeartbeatResponse(alive=True, leader_id=str(self.leader_id) if self.leader_id else "")
 
@@ -170,7 +171,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         candidate_id = int(request.candidate_id)
         if candidate_id < self.node_id:
             if not self._election_in_progress:
-                self.start_election()
+                threading.Thread(target=self.start_election, daemon=True).start()
             return bank_pb2.ElectionResponse(acknowledged=True)
         return bank_pb2.ElectionResponse(acknowledged=False)
 
@@ -275,8 +276,10 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         try:
             account = load_account(acc_id)
             if not account:
+                lock.release()
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
             if op_type == "debit" and account["balance"] < amount:
+                lock.release()
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
             self.pending_2pc[tx_id] = {"account_id": acc_id, "amount": amount, "op_type": op_type, "lock": lock}
             save_pending(tx_id, {"account_id": acc_id, "amount": amount, "op_type": op_type, "status": "PREPARED", "timestamp": datetime.now(timezone.utc).isoformat()})
@@ -293,6 +296,9 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         try:
             account = load_account(pending["account_id"])
             if not account:
+                pending["lock"].release()
+                del self.pending_2pc[tx_id]
+                remove_pending(tx_id)
                 return bank_pb2.CommitResponse(success=False)
             if pending["op_type"] == "debit":
                 account["balance"] -= pending["amount"]
@@ -320,29 +326,21 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         remove_pending(tx_id)
         return bank_pb2.AbortResponse(success=True)
 
+
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     service = BankService()
     bank_pb2_grpc.add_BankServiceServicer_to_server(service, server)
     port = "50052"
-    server.add_insecure_port(f"[::]:{port}")
-    print(f"Banco Chile (gRPC) corriendo en puerto {port}")
+    server.add_insecure_port(f"[::]:50052")
+    print(f"Banco Chile (gRPC) corriendo en puerto 50052")
     threading.Thread(target=service._heartbeat_loop, daemon=True).start()
     threading.Thread(target=service._election_check_loop, daemon=True).start()
     server.start()
     server.wait_for_termination()
+
+
 if __name__ == "__main__":
     os.makedirs(ACCOUNTS_DIR, exist_ok=True)
     os.makedirs(PENDING_DIR, exist_ok=True)
-    if not os.listdir(ACCOUNTS_DIR):
-        initial_accounts = [
-            {"account_id": "CH001", "owner": "cliente_chile", "balance": 20000.0, "currency": "CLP", "type": "ahorros"},
-            {"account_id": "CH002", "owner": "cliente_chile", "balance": 8000.0, "currency": "USD", "type": "corriente"},
-            {"account_id": "CH003", "owner": "cliente_compartido", "balance": 5000.0, "currency": "CLP", "type": "ahorros"}
-        ]
-        for acc in initial_accounts:
-            acc["created_at"] = datetime.now(timezone.utc).isoformat()
-            acc["updated_at"] = acc["created_at"]
-            save_account(acc["account_id"], acc)
-        print("Cuentas iniciales creadas.")
     serve()

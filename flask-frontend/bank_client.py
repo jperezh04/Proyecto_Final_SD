@@ -17,11 +17,10 @@ def get_stub(bank):
 def get_all_accounts_for_user(user_id):
     """Obtiene todas las cuentas de todos los bancos para un usuario."""
     accounts = []
-    # Mapeo de prefijos según el banco
     prefixes = {"peru": "PE", "chile": "CH", "colombia": "CO"}
     for bank, prefix in prefixes.items():
         stub = get_stub(bank)
-        for i in range(1, 4):  # Asumimos 3 cuentas por banco
+        for i in range(1, 4):  # 3 cuentas por banco
             acc_id = f"{prefix}00{i}"
             try:
                 resp = stub.GetBalance(bank_pb2.BalanceRequest(account_id=acc_id))
@@ -30,7 +29,7 @@ def get_all_accounts_for_user(user_id):
                     'description': f'Cuenta {i}',
                     'bank': f'Banco {bank.capitalize()}',
                     'country': bank.capitalize(),
-                    'country_code': bank[:2],
+                    'country_code': bank[:2].upper(),
                     'type': 'Ahorros' if i != 2 else 'Corriente',
                     'balance': f"${resp.balance:,.2f}",
                     'currency': resp.currency,

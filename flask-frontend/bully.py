@@ -28,7 +28,7 @@ def get_cluster_state():
                 "topology_x": "50%" if node_id == 3 else ("20%" if node_id == 2 else "80%"),
                 "topology_y": "20%" if node_id == 3 else ("50%" if node_id == 2 else "50%")
             })
-        except Exception as e:
+        except Exception:
             node_id = bank_ids[bank_name]
             nodes.append({
                 "name": f"Node #{node_id} ({bank_name.capitalize()})",
