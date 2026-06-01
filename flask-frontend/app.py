@@ -1,7 +1,9 @@
 
 import os
+import time
+import grpc
 
-from bank_client import get_all_accounts_for_user
+from bank_client import get_all_accounts_for_user, BANKS, get_stub, bank_pb2
 from flask import Flask, render_template, session, redirect, url_for, request
 
 from dotenv import load_dotenv
@@ -9,6 +11,8 @@ from datetime import datetime
 
 
 load_dotenv()  # Carga el archivo .env
+
+transactions_today_count = 0
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'clave-por-defecto')
@@ -31,6 +35,54 @@ def get_dummy_accounts():
          'type': 'Corriente', 'balance': 3200.50, 'status': 'activa'},
         # ... más cuentas
     ]
+
+def check_bank_health():
+    """Verifica cuántos bancos están respondiendo y mide latencia."""
+    # Cuentas de prueba que sabemos que existen en cada banco
+    test_accounts = {
+        "peru": "PE001",
+        "chile": "CH001",
+        "colombia": "CO001"
+    }
+    healthy = 0
+    total_latency = 0
+
+    for bank in BANKS:
+        try:
+            start = time.time()
+            stub = get_stub(bank)
+            stub.GetBalance(bank_pb2.BalanceRequest(account_id=test_accounts[bank]), timeout=2)
+            latency = (time.time() - start) * 1000  # ms
+            healthy += 1
+            total_latency += latency
+            print(f"{bank} responde en {latency:.1f}ms")
+        except grpc.RpcError as e:
+            # Si responde aunque sea con error, el banco está vivo
+            healthy += 1
+            latency = (time.time() - start) * 1000
+            total_latency += latency
+            print(f"{bank} respondió con {e.code()} en {latency:.1f}ms")
+        except Exception as e:
+            print(f"{bank} no disponible: {e}")
+
+    avg_latency = round(total_latency / healthy) if healthy > 0 else 0
+    return healthy, avg_latency
+
+def get_balance_distribution(accounts):
+    """Calcula el saldo total por banco para el gráfico de barras."""
+    distribution = {"peru": 0, "chile": 0, "colombia": 0}
+    for acc in accounts:
+        # Asumimos que el número de cuenta empieza con PE, CH, CO
+        if acc['number'].startswith('PE'):
+            distribution['peru'] += float(acc['balance'].replace('$','').replace(',',''))
+        elif acc['number'].startswith('CH'):
+            distribution['chile'] += float(acc['balance'].replace('$','').replace(',',''))
+        elif acc['number'].startswith('CO'):
+            distribution['colombia'] += float(acc['balance'].replace('$','').replace(',',''))
+    # Convertir a porcentajes para las alturas de las barras
+    max_balance = max(distribution.values()) if distribution else 1
+    heights = [int((v / max_balance) * 100) if max_balance > 0 else 0 for v in distribution.values()]
+    return heights
 
 # Rutas de páginas
 @app.route('/')
@@ -57,27 +109,46 @@ def do_login():
 def dashboard():
     if 'user' not in session:
         return redirect(url_for('login'))
-    
-    # Obtener cuentas para calcular totales
+
     accounts = get_all_accounts_for_user(session['user'])
     total_balance = sum(float(acc['balance'].replace('$','').replace(',','')) for acc in accounts)
-    
+
+    # Salud de la red
+    healthy_banks, avg_latency = check_bank_health()
+    network_health = int((healthy_banks / 3) * 100)  # 3 bancos total
+
+    # Distribución de saldos para el gráfico
+    balance_heights = get_balance_distribution(accounts)
+
     summary = {
         'current_node': 'Node #1 Peru',
         'current_role': 'Coordinator (Leader)',
-        'network_health': 100,
-        'latency': 12,
+        'network_health': network_health,
+        'latency': avg_latency,
         'last_sync': 'Just now',
         'consolidated_balance': total_balance,
-        'balance_change': '+2.4%',
+        'balance_change': '+2.4%',   # Fijo por ahora
         'total_accounts': len(accounts),
         'total_regions': 3,
-        'transactions_today': 0,  # Luego lo calcularemos
-        'connected_banks': 3,
+        'transactions_today': transactions_today_count,
+        'connected_banks': healthy_banks,
         'total_banks': 3,
-        'cpu_load': 32
+        'cpu_load': 32,              # Placeholder
+        'balance_heights': balance_heights  # Lista de alturas para las barras
     }
-    user = get_user()
+
+    user = {
+        'name': session.get('user', 'Admin'),
+        'bank_name': 'Global Finance',
+        'role': 'Institutional Node #12',
+        'avatar_url': 'https://ui-avatars.com/api/?name=Admin&background=316bf3&color=fff'
+    }
+
+    return render_template('dashboard.html',
+                           summary=summary,
+                           user=user,
+                           active_page='dashboard')
+
     return render_template('dashboard.html',
                            summary=summary,
                            user=user,
