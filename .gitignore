@@ -1,0 +1,38 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# === Entorno virtual ===
+venv/
+.venv/
+env/
+.env
+
+# === Archivos de datos generados (cuentas bancarias) ===
+bank-peru/data/accounts/*.json
+bank-chile/data/accounts/*.json
+bank-colombia/data/accounts/*.json
+
+# === gRPC generados (si prefieres ignorarlos) ===
+*_pb2.py
+*_pb2_grpc.py
+
+# === IDE y sistema ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# === Variables de entorno ===
+.env
+
+# === Logs ===
+*.log
