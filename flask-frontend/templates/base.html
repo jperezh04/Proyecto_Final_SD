@@ -87,6 +87,16 @@
             }
         }
     </script>
+    <style>
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+    </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-background text-on-background font-body min-h-screen flex">
@@ -157,39 +167,41 @@
         </main>
     </div>
 
+    <!-- ========== TOAST CONTAINER ========== -->
+    <div id="toastContainer" aria-live="polite" style="position:fixed; top:20px; right:20px; z-index:1000; display:flex; flex-direction:column; gap:8px;"></div>
+
     <!-- ========== SCRIPTS ========== -->
-    <!-- Global toast container (used by all pages) -->
-    <div id="globalToastContainer" aria-live="polite" style="position:fixed;right:18px;bottom:18px;z-index:120;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none"></div>
     <script>
-        // Global showToast helper (non-invasive, pleasant toasts)
-        window.showToast = function(msg, ttl = 3000, type = 'info') {
-            try {
-                const toastContainer = document.getElementById('globalToastContainer');
-                if (!toastContainer) return;
-                const el = document.createElement('div');
-                el.className = 'coord-toast';
-                el.style.display = 'flex';
-                el.style.gap = '10px';
-                el.style.alignItems = 'center';
-                el.style.pointerEvents = 'auto';
-                el.style.background = type === 'success' ? 'linear-gradient(90deg,#0ea5a4,#06b6d4)' : (type === 'error' ? 'linear-gradient(90deg,#ef4444,#f97316)' : 'rgba(0,0,0,0.8)');
-                el.style.color = '#fff';
-                el.style.padding = '10px 14px';
-                el.style.borderRadius = '10px';
-                el.style.fontSize = '13px';
-                el.style.boxShadow = '0 8px 24px rgba(2,6,23,0.5)';
-                el.style.transform = 'translateX(18px)';
-                el.style.opacity = '0';
-                el.style.transition = 'transform 280ms ease, opacity 280ms ease';
-                el.innerHTML = `<span style="font-weight:600;opacity:0.95;">${msg}</span>`;
-                toastContainer.appendChild(el);
-                // slide in
-                requestAnimationFrame(() => { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
-                setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(18px)'; }, ttl - 300);
-                setTimeout(() => el.remove(), ttl);
-            } catch (err) {
-                console.error('showToast error', err);
-            }
+        window.showToast = function(message, duration = 3000, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const bgColors = { success: '#10b981', error: '#ef4444', info: '#3b82f6', warning: '#f59e0b' };
+            const icons = { success: 'check_circle', error: 'error', info: 'info', warning: 'warning' };
+            toast.className = 'toast-item';
+            toast.style.cssText = `
+                background: ${bgColors[type] || bgColors.info};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-family: 'Geist', sans-serif;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                animation: slideIn 0.3s ease, fadeOut 0.3s ${duration-500}ms ease forwards;
+                max-width: 350px;
+                word-wrap: break-word;
+            `;
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'material-symbols-outlined';
+            iconSpan.textContent = icons[type] || 'info';
+            iconSpan.style.fontSize = '20px';
+            toast.appendChild(iconSpan);
+            toast.appendChild(document.createTextNode(message));
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), duration);
         };
     </script>
     <script>

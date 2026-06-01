@@ -4,7 +4,6 @@
 
 {% block extra_head %}
 <style>
-    /* Estilos para el grafo de topología */
     #topologyCanvas {
         width: 100%;
         height: 100%;
@@ -18,17 +17,6 @@
         border-radius: var(--radius-lg);
         border: 1px solid var(--color-outline-variant);
         overflow: hidden;
-    }
-    .node-circle {
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    .node-circle:hover {
-        filter: brightness(1.2);
-        transform: scale(1.1);
-    }
-    .connection-line {
-        transition: all 0.3s ease;
     }
 </style>
 {% endblock %}
@@ -62,20 +50,20 @@
                         <span class="material-symbols-outlined text-primary">verified_user</span>
                         <h3 class="font-headline text-lg font-semibold text-on-surface">Current Coordinator</h3>
                     </div>
-                    <div class="font-headline text-4xl font-bold text-on-surface mb-2">{{ coordinator.name }}</div>
+                    <div id="coordinatorName" class="font-headline text-4xl font-bold text-on-surface mb-2">{{ coordinator.name }}</div>
                     <p class="font-body text-sm text-on-surface-variant">{{ coordinator.details }}</p>
                 </div>
                 <div class="mt-6 pt-4 border-t border-outline-variant relative z-10">
                     <p class="font-label text-xs text-on-surface-variant mb-2 uppercase tracking-wider">Algorithm State</p>
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full {{ 'bg-tertiary animate-pulse' if coordinator.state == 'STABLE' else 'bg-[#f59e0b] animate-pulse' }}"></div>
-                        <span class="font-headline text-lg font-semibold text-on-surface">{{ coordinator.state }}</span>
+                        <div id="stateIndicator" class="w-3 h-3 rounded-full {{ 'bg-tertiary animate-pulse' if coordinator.state == 'STABLE' else 'bg-[#f59e0b] animate-pulse' }}"></div>
+                        <span id="stateText" class="font-headline text-lg font-semibold text-on-surface">{{ coordinator.state }}</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right: Cluster Topology Viz (MEJORADO) -->
+        <!-- Right: Cluster Topology Viz -->
         <div class="lg:col-span-8">
             <div class="glass-card rounded-xl p-6 h-[340px] flex flex-col shadow-sm">
                 <div class="flex justify-between items-center mb-4">
@@ -93,13 +81,13 @@
         </div>
     </div>
 
-    <!-- Bottom Row: Node List & Timeline (sin cambios) -->
+    <!-- Bottom Row: Node List & Timeline -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
         <!-- Node List -->
         <div class="lg:col-span-8 glass-card rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-container/50">
                 <h3 class="font-headline text-lg font-semibold text-on-surface">Node Registry</h3>
-                <span class="font-label text-xs px-2 py-1 bg-surface-container-high rounded text-on-surface-variant">
+                <span id="activeNodesCount" class="font-label text-xs px-2 py-1 bg-surface-container-high rounded text-on-surface-variant">
                     {{ nodes | selectattr('state', 'ne', 'DISCONNECTED') | list | length }} Active Nodes
                 </span>
             </div>
@@ -114,7 +102,7 @@
                             <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="font-body text-sm">
+                    <tbody id="nodeTableBody" class="font-body text-sm">
                         {% for node in nodes %}
                         <tr class="border-b border-outline-variant hover:bg-surface-container-highest transition-colors
                                    {{ 'bg-error-container/10' if node.state == 'DISCONNECTED' else '' }}">
@@ -140,7 +128,7 @@
                                 {{ node.uptime if node.state != 'DISCONNECTED' else '-' }}
                             </td>
                             <td class="py-4 px-5 text-right">
-                                <button class="node-actions-btn text-on-surface-variant hover:text-on-surface" data-node-id="{{ node.name }}" aria-expanded="false" aria-label="Node actions for {{ node.name }}">
+                                <button class="node-actions-btn text-on-surface-variant hover:text-on-surface" data-node-id="{{ node.name }}" aria-label="Node actions">
                                     <span class="material-symbols-outlined text-[18px]">more_vert</span>
                                 </button>
                             </td>
@@ -156,29 +144,14 @@
             <div class="p-5 border-b border-outline-variant bg-surface-container/50">
                 <h3 class="font-headline text-lg font-semibold text-on-surface">Event Timeline</h3>
             </div>
-            <div class="p-5 flex-1 overflow-y-auto bg-surface-container-low">
-                <div class="relative border-l border-outline-variant ml-3 space-y-6">
-                    {% for event in events %}
-                    <div class="relative pl-6">
-                        <div class="absolute w-3 h-3 rounded-full -left-[6.5px] top-1.5 ring-4 ring-surface-container-low
-                                    {% if event.type == 'election' %}
-                                        bg-primary
-                                    {% elif event.type == 'failure' %}
-                                        bg-error-container border border-error
-                                    {% else %}
-                                        bg-surface-container-high border border-outline
-                                    {% endif %}"></div>
-                        <p class="font-label text-xs text-on-surface-variant mb-1">{{ event.time }}</p>
-                        <p class="font-body text-sm text-on-surface font-medium">{{ event.title }}</p>
-                        <p class="font-body text-sm text-on-surface-variant mt-1">{{ event.description }}</p>
-                    </div>
-                    {% endfor %}
-                </div>
+            <div id="timelineContent" class="p-5 flex-1 overflow-y-auto bg-surface-container-low">
+                <!-- Se llena dinamicamente -->
             </div>
         </div>
     </div>
 </div>
-<!-- Node action menu (hidden by default) -->
+
+<!-- Node action menu (oculto) -->
 <div id="nodeActionMenu" style="position:absolute;display:none;z-index:60;min-width:180px;background:var(--color-surface-container);border:1px solid var(--color-outline-variant);border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.12);">
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="details">View Details</button>
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="force-election">Force Election</button>
@@ -186,360 +159,10 @@
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="refresh">Refresh Node</button>
 </div>
 {% endblock %}
-
-{% block scripts %}
 <script>
-    // Datos inyectados desde Flask (reemplaza las posiciones fijas)
-    const nodesData = {{ nodes | tojson }};
-    const coordinatorShortName = "{{ coordinator.short_name }}";
-
-    // Colores del tema (deberían coincidir con las variables CSS, pero los definimos aquí para el canvas)
-    const colors = {
-        leader: '#a78bfa',   // --color-primary
-        follower: '#52525b', // --color-outline
-        down: '#ba1a1a',     // --color-error
-        line: '#52525b',
-        text: '#fafafa',
-        textDark: '#18181b'
-    };
-
-    function drawTopology() {
-        const container = document.getElementById('topologyContainer');
-        const canvas = document.getElementById('topologyCanvas');
-        const ctx = canvas.getContext('2d');
-
-        let hoveredNode = null;
-        let animationId = null;
-        const baseNodeRadius = 28;
-        const interactions = [];
-        // expose interactions array so other UI code can add animations
-        window._topologyInteractions = interactions;
-        let interactionInterval = null;
-
-        // Ajustar tamaño del canvas al contenedor
-        const resize = () => {
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-        };
-        window.addEventListener('resize', resize);
-        resize();
-
-        // Coordenadas del ratón para tooltip
-        function getMousePos(evt) {
-            const rect = canvas.getBoundingClientRect();
-            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-        }
-
-        canvas.addEventListener('mousemove', (e) => {
-            const m = getMousePos(e);
-            let found = null;
-            for (const n of nodesData) {
-                if (!n.x || !n.y) continue;
-                const dx = m.x - n.x; const dy = m.y - n.y;
-                const r = (n.state === 'LEADER' ? baseNodeRadius * 1.3 : baseNodeRadius);
-                if (Math.sqrt(dx*dx + dy*dy) <= r + 6) { found = n; break; }
-            }
-            const tooltip = document.getElementById('topologyTooltip');
-            if (found) {
-                hoveredNode = found;
-                tooltip.style.display = 'block';
-                tooltip.innerHTML = `<strong>${found.name || found.short_name}</strong><div style="font-size:12px;margin-top:4px">State: ${found.state}<br/>Priority: ${found.priority || '-'}${found.uptime ? `<br/>Uptime: ${found.uptime}` : ''}</div>`;
-                tooltip.style.left = (m.x + 12) + 'px';
-                tooltip.style.top = (m.y + 12) + 'px';
-                canvas.style.cursor = 'pointer';
-            } else {
-                hoveredNode = null;
-                tooltip.style.display = 'none';
-                canvas.style.cursor = 'default';
-            }
-        });
-
-        canvas.addEventListener('mouseleave', () => {
-            hoveredNode = null;
-            const tooltip = document.getElementById('topologyTooltip');
-            if (tooltip) tooltip.style.display = 'none';
-            canvas.style.cursor = 'default';
-        });
-
-        function draw(time = 0) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = Math.min(canvas.width, canvas.height) * 0.35;
-            const nodeRadius = baseNodeRadius;
-
-            // Encontrar el líder
-            let leaderNode = nodesData.find(n => n.state === 'LEADER');
-            const followers = nodesData.filter(n => n.state !== 'LEADER' && n.state !== 'DISCONNECTED');
-            const downNodes = nodesData.filter(n => n.state === 'DISCONNECTED');
-
-            // Posicionar líder en el centro
-            const leaderPos = { x: centerX, y: centerY };
-
-            // Calcular posiciones de seguidores y caídos en un círculo
-            const allPeripheral = [...followers, ...downNodes];
-            const angleStep = (2 * Math.PI) / (allPeripheral.length || 1);
-
-            allPeripheral.forEach((node, index) => {
-                const angle = angleStep * index - Math.PI / 2; // Empezar desde arriba
-                node.x = centerX + radius * Math.cos(angle);
-                node.y = centerY + radius * Math.sin(angle);
-            });
-
-            // Dibujar líneas de conexión
-            ctx.strokeStyle = colors.line;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 3]);
-            followers.forEach(node => {
-                if (node.state === 'FOLLOWER') {
-                    ctx.beginPath();
-                    ctx.moveTo(leaderPos.x, leaderPos.y);
-                    ctx.lineTo(node.x, node.y);
-                    ctx.strokeStyle = '#52525b';
-                    ctx.stroke();
-                }
-            });
-
-            // Dibujar líneas hacia nodos caídos (punteado rojo)
-            ctx.setLineDash([2, 4]);
-            downNodes.forEach(node => {
-                ctx.beginPath();
-                ctx.moveTo(leaderPos.x, leaderPos.y);
-                ctx.lineTo(node.x, node.y);
-                ctx.strokeStyle = '#ba1a1a';
-                ctx.stroke();
-            });
-            ctx.setLineDash([]); // Reset
-
-            // Dibujar nodos (primero los caídos, luego seguidores, luego líder para que esté encima)
-            const drawNode = (node, isLeader = false) => {
-                const radius = isLeader ? nodeRadius * 1.3 : nodeRadius;
-                const isHovered = hoveredNode && hoveredNode === node;
-
-                // Sombra/halo si está seleccionado
-                if (isHovered) {
-                    ctx.beginPath();
-                    ctx.arc(node.x, node.y, radius + 10, 0, 2 * Math.PI);
-                    ctx.fillStyle = 'rgba(255,255,255,0.03)';
-                    ctx.fill();
-                }
-
-                // Círculo exterior con sombra
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = node.state === 'LEADER' ? '#7c3aed' :
-                                node.state === 'FOLLOWER' ? '#27272a' : '#3b1111';
-                ctx.fill();
-                ctx.strokeStyle = node.state === 'LEADER' ? '#a78bfa' :
-                                  node.state === 'FOLLOWER' ? '#52525b' : '#ba1a1a';
-                ctx.lineWidth = isHovered ? 4 : 3;
-                ctx.stroke();
-
-                // Texto del nodo (nombre corto)
-                ctx.fillStyle = node.state === 'DISCONNECTED' ? '#a1a1aa' : '#fafafa';
-                ctx.font = isHovered ? 'bold 15px Geist, sans-serif' : 'bold 14px Geist, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(node.short_name, node.x, node.y);
-
-                // Etiqueta de estado debajo del nodo
-                ctx.fillStyle = '#a1a1aa';
-                ctx.font = '10px Geist, sans-serif';
-                ctx.fillText(node.state, node.x, node.y + radius + 12);
-            };
-
-            // Dibujar en orden: caídos -> seguidores -> líder
-            downNodes.forEach(n => drawNode(n));
-            followers.forEach(n => drawNode(n));
-            if (leaderNode) drawNode(leaderNode, true);
-            else {
-                // Si no hay líder, dibujar el primero como candidato
-                leaderNode = nodesData[0];
-                leaderNode.x = centerX;
-                leaderNode.y = centerY;
-                drawNode(leaderNode, true);
-            }
-
-            // Dibujar animaciones de interacciones (pulsos viajando entre nodos)
-            const now = time || performance.now();
-            for (let i = interactions.length - 1; i >= 0; i--) {
-                const it = interactions[i];
-                const prog = (now - it.start) / it.duration;
-                if (prog >= 1) { interactions.splice(i, 1); continue; }
-                const sx = it.from.x, sy = it.from.y, tx = it.to.x, ty = it.to.y;
-                const ix = sx + (tx - sx) * prog;
-                const iy = sy + (ty - sy) * prog;
-                ctx.beginPath();
-                ctx.fillStyle = it.color || '#f1f5f9';
-                ctx.arc(ix, iy, 5 * (1 - prog * 0.6), 0, 2 * Math.PI);
-                ctx.fill();
-            }
-
-            // Efecto de pulso para el líder (animado)
-            if (leaderNode && leaderNode.state === 'LEADER') {
-                const pulseRadius = nodeRadius * 1.3 + 6 + Math.sin(time / 300) * 3;
-                ctx.beginPath();
-                ctx.arc(leaderNode.x, leaderNode.y, pulseRadius, 0, 2 * Math.PI);
-                ctx.strokeStyle = '#a78bfa';
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.18 + (Math.sin(time / 300) + 1) * 0.06;
-                ctx.stroke();
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        // Animation loop for smooth pulse + hover responsiveness
-        function animate(t) {
-            draw(t);
-            animationId = requestAnimationFrame(animate);
-        }
-        animationId = requestAnimationFrame(animate);
-    }
-
-    // Inicializar cuando el DOM esté listo
-    document.addEventListener('DOMContentLoaded', () => {
-        // Create tooltip element
-        const container = document.getElementById('topologyContainer');
-        let tooltip = document.getElementById('topologyTooltip');
-        if (!tooltip) {
-            tooltip = document.createElement('div');
-            tooltip.id = 'topologyTooltip';
-            tooltip.style.position = 'absolute';
-            tooltip.style.pointerEvents = 'none';
-            tooltip.style.zIndex = 50;
-            tooltip.style.padding = '8px 10px';
-            tooltip.style.background = 'rgba(0,0,0,0.75)';
-            tooltip.style.color = '#fff';
-            tooltip.style.borderRadius = '6px';
-            tooltip.style.fontSize = '13px';
-            tooltip.style.display = 'none';
-            container.appendChild(tooltip);
-        }
-
-        // Add a compact legend for clarity
-        if (!document.getElementById('topologyLegend')) {
-            const legend = document.createElement('div');
-            legend.id = 'topologyLegend';
-            legend.style.position = 'absolute';
-            legend.style.top = '12px';
-            legend.style.right = '12px';
-            legend.style.background = 'rgba(255,255,255,0.06)';
-            legend.style.backdropFilter = 'blur(6px)';
-            legend.style.padding = '8px 10px';
-            legend.style.borderRadius = '8px';
-            legend.style.fontSize = '12px';
-            legend.style.color = '#e6e6e6';
-            legend.innerHTML = `
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="width:12px;height:12px;background:#7c3aed;border-radius:3px;display:inline-block"></span>Leader</div>
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="width:12px;height:12px;background:#27272a;border-radius:3px;display:inline-block"></span>Follower</div>
-                <div style="display:flex;gap:8px;align-items:center"><span style="width:12px;height:12px;background:#3b1111;border-radius:3px;display:inline-block"></span>Down</div>
-            `;
-            container.appendChild(legend);
-        }
-
-        // Initialize drawing and interactivity
-        drawTopology();
-
-        // Use global showToast provided by base template
-
-        // Node action menu wiring
-        const nodeMenu = document.getElementById('nodeActionMenu');
-        function openNodeMenuAt(nodeId, clientRect) {
-            nodeMenu.dataset.nodeId = nodeId;
-            const x = clientRect.right + 6;
-            const y = clientRect.top;
-            nodeMenu.style.left = `${x}px`;
-            nodeMenu.style.top = `${y}px`;
-            nodeMenu.style.display = 'block';
-        }
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#nodeActionMenu')) nodeMenu.style.display = 'none';
-        });
-
-        document.querySelectorAll('.node-actions-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const nodeId = btn.dataset.nodeId;
-                openNodeMenuAt(nodeId, btn.getBoundingClientRect());
-            });
-        });
-
-        nodeMenu.querySelectorAll('.menu-item').forEach(item => {
-            item.addEventListener('click', async (e) => {
-                const action = item.dataset.action;
-                const nodeId = nodeMenu.dataset.nodeId;
-                nodeMenu.style.display = 'none';
-                if (action === 'details') {
-                    const node = nodesData.find(n => n.name === nodeId || n.short_name === nodeId);
-                    if (node) showToast(`${node.name}: ${node.state} — priority ${node.priority || '-'} `, 5000, 'info');
-                    else showToast('Node not found', 3000, 'error');
-                } else if (action === 'force-election') {
-                    try {
-                        const res = await fetch('/api/force-election', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({node: nodeId}) });
-                        if (res.ok) showToast('Election forced', 2500, 'success'); else showToast('Force election failed', 3000, 'error');
-                    } catch (err) { showToast('Network error'); }
-                } else if (action === 'disconnect') {
-                    try {
-                        const res = await fetch(`/api/node/${encodeURIComponent(nodeId)}/toggle`, { method: 'POST' });
-                        if (res.ok) showToast('Toggled node connection', 2200, 'success'); else showToast('Action failed', 3000, 'error');
-                    } catch (err) { showToast('Network error'); }
-                } else if (action === 'refresh') {
-                    showToast('Refreshing node info...', 1800, 'info');
-                }
-            });
-        });
-
-        // Header buttons
-        const forceBtn = document.getElementById('forceElectionBtn');
-        if (forceBtn) forceBtn.addEventListener('click', async () => {
-            try {
-                const res = await fetch('/api/force-election', { method: 'POST' });
-                if (res.ok) showToast('Global election requested', 2200, 'success'); else showToast('Request failed', 3000, 'error');
-            } catch (err) { showToast('Network error'); }
-        });
-
-        const exportBtn = document.getElementById('exportLogsBtn');
-        if (exportBtn) exportBtn.addEventListener('click', async () => {
-            try {
-                const res = await fetch('/api/export-logs');
-                if (res.ok) {
-                    const blob = await res.blob();
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'coordination-logs.txt';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    URL.revokeObjectURL(url);
-                    showToast('Logs exported', 2200, 'success');
-                } else {
-                    showToast('No logs available', 3000, 'info');
-                }
-            } catch (err) { showToast('Network error', 3000, 'error'); }
-        });
-
-        // Simulate interactions between active nodes so topology feels alive
-        function startInteractionSimulation() {
-            if (window._topologyInteractionInterval) return;
-            window._topologyInteractionInterval = setInterval(() => {
-                const active = nodesData.filter(n => n.state !== 'DISCONNECTED');
-                if (active.length < 2) return;
-                const a = active[Math.floor(Math.random() * active.length)];
-                let b = active[Math.floor(Math.random() * active.length)];
-                if (b === a) {
-                    b = active[(active.indexOf(a) + 1) % active.length];
-                }
-                // push an interaction into the draw loop's interactions array if available
-                try {
-                    // we rely on drawTopology creating a variable on window to accept interactions
-                    if (window._topologyInteractions && a.x && b.x) {
-                        window._topologyInteractions.push({ from: a, to: b, start: performance.now(), duration: 700, color: '#a78bfa' });
-                    }
-                } catch (err) {}
-            }, 900);
-        }
-        startInteractionSimulation();
-    });
+    window.__INITIAL_NODES__ = {{ nodes | tojson }};
+    window.__INITIAL_COORDINATOR__ = {{ coordinator | tojson }};
 </script>
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/coordination.js') }}"></script>
 {% endblock %}

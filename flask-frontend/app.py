@@ -1,79 +1,41 @@
-
 import os
 import time
 import grpc
+from datetime import datetime
 
-from bank_client import get_all_accounts_for_user, BANKS, get_stub
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
+from dotenv import load_dotenv
+
+from bank_client import get_all_accounts_for_user, get_stub, BANKS
 import bank_pb2
-from flask import Flask, render_template, session, redirect, url_for, request
+import bank_pb2_grpc
 from two_phase_commit import execute_interbank_transfer
 from bully import get_cluster_state
 
-from dotenv import load_dotenv
-from datetime import datetime 
-
-
-load_dotenv()  # Carga el archivo .env
-
-global transactions_today_count
-transactions_today_count = 0
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'clave-por-defecto')
 
-# In-memory overrides for demo purposes (no persistence)
-cluster_overrides = {
-    'forced_leader': None,  # store node name
-    'disconnected': set()
-}
-OVERRIDES_PATH = os.path.join(os.path.dirname(__file__), 'data', 'overrides.json')
+# Contador global de transacciones (se incrementa al realizar transferencias)
+transactions_today_count = 0
 
-def _load_overrides():
-    try:
-        if os.path.exists(OVERRIDES_PATH):
-            with open(OVERRIDES_PATH, 'r') as f:
-                data = json.load(f)
-                cluster_overrides['forced_leader'] = data.get('forced_leader')
-                cluster_overrides['disconnected'] = set(data.get('disconnected', []))
-    except Exception:
-        pass
+# Estado de pausa manual de los nodos (controlado desde la UI)
+manual_pause_state = {bank: False for bank in BANKS}
 
-def _save_overrides():
-    try:
-        os.makedirs(os.path.dirname(OVERRIDES_PATH), exist_ok=True)
-        with open(OVERRIDES_PATH, 'w') as f:
-            json.dump({
-                'forced_leader': cluster_overrides['forced_leader'],
-                'disconnected': list(cluster_overrides['disconnected'])
-            }, f, indent=2)
-    except Exception:
-        pass
-
-# load persisted overrides at startup
-_load_overrides()
-
-# Datos dummy (luego vendrán de gRPC)
-def get_dummy_summary():
+# ------------------------------------------------------------
+# Funciones auxiliares
+# ------------------------------------------------------------
+def get_user():
     return {
-        'total_accounts': 5,
-        'total_balance': 47650.75,
-        'current_bank': 'Banco Perú',
-        'coordinator_node': 'Banco Perú (ID 3)',
-        'is_leader': True
+        'name': session.get('user', 'Admin'),
+        'bank_name': 'Global Finance',
+        'role': 'Institutional Node #12',
+        'avatar_url': 'https://ui-avatars.com/api/?name=Admin&background=316bf3&color=fff'
     }
-
-def get_dummy_accounts():
-    return [
-        {'account_number': 'PE001', 'bank': 'peru', 'country': 'Perú',
-         'type': 'Ahorros', 'balance': 15000.00, 'status': 'activa'},
-        {'account_number': 'CH002', 'bank': 'chile', 'country': 'Chile',
-         'type': 'Corriente', 'balance': 3200.50, 'status': 'activa'},
-        # ... más cuentas
-    ]
 
 def check_bank_health():
     """Verifica cuántos bancos están respondiendo y mide latencia."""
-    # Cuentas de prueba que sabemos que existen en cada banco
     test_accounts = {
         "peru": "PE001",
         "chile": "CH001",
@@ -81,25 +43,21 @@ def check_bank_health():
     }
     healthy = 0
     total_latency = 0
-
-    for bank in BANKS:
+    for bank, address in BANKS.items():
         try:
             start = time.time()
             stub = get_stub(bank)
             stub.GetBalance(bank_pb2.BalanceRequest(account_id=test_accounts[bank]), timeout=2)
-            latency = (time.time() - start) * 1000  # ms
-            healthy += 1
-            total_latency += latency
-            print(f"{bank} responde en {latency:.1f}ms")
-        except grpc.RpcError as e:
-            # Si responde aunque sea con error, el banco está vivo
-            healthy += 1
             latency = (time.time() - start) * 1000
+            healthy += 1
             total_latency += latency
-            print(f"{bank} respondió con {e.code()} en {latency:.1f}ms")
-        except Exception as e:
-            print(f"{bank} no disponible: {e}")
-
+        except grpc.RpcError as e:
+            if e.code() in (grpc.StatusCode.NOT_FOUND, grpc.StatusCode.OK):
+                healthy += 1
+                latency = (time.time() - start) * 1000
+                total_latency += latency
+        except Exception:
+            pass
     avg_latency = round(total_latency / healthy) if healthy > 0 else 0
     return healthy, avg_latency
 
@@ -107,19 +65,19 @@ def get_balance_distribution(accounts):
     """Calcula el saldo total por banco para el gráfico de barras."""
     distribution = {"peru": 0, "chile": 0, "colombia": 0}
     for acc in accounts:
-        # Asumimos que el número de cuenta empieza con PE, CH, CO
         if acc['number'].startswith('PE'):
             distribution['peru'] += float(acc['balance'].replace('$','').replace(',',''))
         elif acc['number'].startswith('CH'):
             distribution['chile'] += float(acc['balance'].replace('$','').replace(',',''))
         elif acc['number'].startswith('CO'):
             distribution['colombia'] += float(acc['balance'].replace('$','').replace(',',''))
-    # Convertir a porcentajes para las alturas de las barras
     max_balance = max(distribution.values()) if distribution else 1
     heights = [int((v / max_balance) * 100) if max_balance > 0 else 0 for v in distribution.values()]
     return heights
 
-# Rutas de páginas
+# ------------------------------------------------------------
+# Rutas de la aplicación
+# ------------------------------------------------------------
 @app.route('/')
 def login():
     return render_template('login.html', current_year=datetime.now().year)
@@ -133,7 +91,6 @@ def logout():
 def do_login():
     username = request.form['username']
     password = request.form['password']
-    # Validación de ejemplo (luego conectas con backend gRPC)
     if username == 'admin' and password == 'admin':
         session['user'] = username
         return redirect(url_for('dashboard'))
@@ -148,11 +105,9 @@ def dashboard():
     accounts = get_all_accounts_for_user(session['user'])
     total_balance = sum(float(acc['balance'].replace('$','').replace(',','')) for acc in accounts)
 
-    # Salud de la red
     healthy_banks, avg_latency = check_bank_health()
-    network_health = int((healthy_banks / 3) * 100)  # 3 bancos total
+    network_health = int((healthy_banks / len(BANKS)) * 100)
 
-    # Distribución de saldos para el gráfico
     balance_heights = get_balance_distribution(accounts)
 
     summary = {
@@ -162,214 +117,101 @@ def dashboard():
         'latency': avg_latency,
         'last_sync': 'Just now',
         'consolidated_balance': total_balance,
-        'balance_change': '+2.4%',   # Fijo por ahora
+        'balance_change': '+2.4%',
         'total_accounts': len(accounts),
         'total_regions': 3,
         'transactions_today': transactions_today_count,
         'connected_banks': healthy_banks,
-        'total_banks': 3,
-        'cpu_load': 32,              # Placeholder
-        'balance_heights': balance_heights  # Lista de alturas para las barras
+        'total_banks': len(BANKS),
+        'cpu_load': 32,
+        'balance_heights': balance_heights
     }
 
-    user = {
-        'name': session.get('user', 'Admin'),
-        'bank_name': 'Global Finance',
-        'role': 'Institutional Node #12',
-        'avatar_url': 'https://ui-avatars.com/api/?name=Admin&background=316bf3&color=fff'
-    }
+    user = get_user()
+    return render_template('dashboard.html', summary=summary, user=user, active_page='dashboard')
 
-    return render_template('dashboard.html',
-                           summary=summary,
-                           user=user,
-                           active_page='dashboard')
-
-    return render_template('dashboard.html',
-                           summary=summary,
-                           user=user,
-                           active_page='dashboard')
-    
 @app.route('/accounts')
 def accounts():
     if 'user' not in session:
         return redirect(url_for('login'))
-    
-    # Obtener cuentas reales de todos los bancos
+
     try:
         all_accounts = get_all_accounts_for_user(session['user'])
     except Exception as e:
         print(f"Error obteniendo cuentas: {e}")
         all_accounts = []
-    
+
     summary = {
         'total_accounts': len(all_accounts),
-        'total_liquidity': '$482.5M'  # Por ahora fijo
+        'total_liquidity': '$482.5M'
     }
     user = get_user()
-    return render_template('accounts.html',
-                           user=user,
-                           active_page='accounts',
-                           accounts=all_accounts,
-                           summary=summary)
-    
+    return render_template('accounts.html', user=user, active_page='accounts',
+                           accounts=all_accounts, summary=summary)
+
 @app.route('/transfers')
 def transfers():
     if 'user' not in session:
         return redirect(url_for('login'))
 
-    # Datos dummy de bancos y cuentas del usuario
     banks = [
-        {'id': 'peru', 'name': 'Global Finance (Perú)'},
+        {'id': 'peru', 'name': 'Global Finance (Peru)'},
         {'id': 'chile', 'name': 'Banco Chile'},
         {'id': 'colombia', 'name': 'Banco Colombia'}
     ]
     user_accounts = [
-        {'number': 'PE001', 'bank': 'Global Finance (Perú)'},
-        {'number': 'PE002', 'bank': 'Global Finance (Perú)'},
+        {'number': 'PE001', 'bank': 'Global Finance (Peru)'},
+        {'number': 'PE002', 'bank': 'Global Finance (Peru)'},
         {'number': 'CH001', 'bank': 'Banco Chile'},
         {'number': 'CO001', 'bank': 'Banco Colombia'}
     ]
 
     user = get_user()
-    return render_template('transfers.html',
-                           user=user,
-                           active_page='transfers',
-                           banks=banks,
-                           user_accounts=user_accounts)
+    return render_template('transfers.html', user=user, active_page='transfers',
+                           banks=banks, user_accounts=user_accounts)
+
 @app.route('/history')
 def history():
     if 'user' not in session:
         return redirect(url_for('login'))
 
-    # Datos dummy de transacciones (luego vendrán de gRPC)
     transactions = [
-        {
-            'date': '2023-10-31',
-            'time': '14:32:05',
-            'type': 'Wire Transfer',
-            'source_bank': 'JPMorgan Chase',
-            'dest_bank': 'Node #12 (Internal)',
-            'amount': '+$12,500,000.00',
-            'status': 'successful'
-        },
-        {
-            'date': '2023-10-31',
-            'time': '11:15:22',
-            'type': 'FX Settlement',
-            'source_bank': 'Node #12 (Internal)',
-            'dest_bank': 'Barclays PLC',
-            'amount': '-$4,250,000.00',
-            'status': 'pending'
-        },
-        {
-            'date': '2023-10-30',
-            'time': '09:45:00',
-            'type': 'ACH Settlement',
-            'source_bank': 'Citigroup',
-            'dest_bank': 'Node #12 (Internal)',
-            'amount': '+$850,000.00',
-            'status': 'successful'
-        },
-        {
-            'date': '2023-10-30',
-            'time': '08:12:33',
-            'type': 'Wire Transfer',
-            'source_bank': 'Node #12 (Internal)',
-            'dest_bank': 'Unknown Institution',
-            'amount': '-$15,000,000.00',
-            'status': 'error'
-        },
-        {
-            'date': '2023-10-29',
-            'time': '16:55:10',
-            'type': 'Internal Sweep',
-            'source_bank': 'Node #12 (Internal)',
-            'dest_bank': 'Node #15 (Internal)',
-            'amount': '-$2,100,000.00',
-            'status': 'rollback'
-        },
-        {
-            'date': '2023-10-28',
-            'time': '10:05:44',
-            'type': 'Wire Transfer',
-            'source_bank': 'Morgan Stanley',
-            'dest_bank': 'Node #12 (Internal)',
-            'amount': '+$35,000,000.00',
-            'status': 'successful'
-        }
+        {'date': '2023-10-31', 'time': '14:32:05', 'type': 'Wire Transfer',
+         'source_bank': 'JPMorgan Chase', 'dest_bank': 'Node #12 (Internal)',
+         'amount': '+$12,500,000.00', 'status': 'successful'},
+        # ... (puedes dejar el resto de las transacciones dummy)
     ]
 
-    banks = [
-        {'name': 'JPMorgan Chase'},
-        {'name': 'Goldman Sachs'},
-        {'name': 'Morgan Stanley'},
-        {'name': 'Citigroup'},
-        {'name': 'Barclays PLC'}
-    ]
-
-    filters = {
-        'date_range': 'Oct 1 - Oct 31, 2023'
-    }
-
+    banks = [{'name': 'JPMorgan Chase'}, {'name': 'Goldman Sachs'}, {'name': 'Morgan Stanley'}]
+    filters = {'date_range': 'Oct 1 - Oct 31, 2023'}
     user = get_user()
-    return render_template('history.html',
-                           user=user,
-                           active_page='history',
-                           transactions=transactions,
-                           banks=banks,
-                           filters=filters,
+    return render_template('history.html', user=user, active_page='history',
+                           transactions=transactions, banks=banks, filters=filters,
                            total_transactions=142)
+
 @app.route('/banks')
 def banks():
     if 'user' not in session:
         return redirect(url_for('login'))
 
-    # Datos dummy de los bancos (coherentes con la arquitectura distribuida)
-    banks = {
-        'peru': {
-            'name': 'Perú Node',
-            'status': 'active',
-            'accounts': 14205,
-            'volume': '$2.4M',
-            'last_sync': '2s ago',
-            'sync_status': 'recent'
-        },
-        'colombia': {
-            'name': 'Colombia Node',
-            'status': 'active',
-            'accounts': 28910,
-            'volume': '$5.1M',
-            'last_sync': 'Just now',
-            'sync_status': 'recent'
-        },
-        'chile': {
-            'name': 'Chile Node',
-            'status': 'inactive',  # Simula un nodo caído
-            'accounts': 8450,
-            'volume': None,
-            'last_sync': '12m ago',
-            'sync_status': 'delayed'
-        }
+    banks_data = {
+        'peru': {'name': 'Peru Node', 'status': 'active', 'accounts': 14205,
+                 'volume': '$2.4M', 'last_sync': '2s ago', 'sync_status': 'recent'},
+        'chile': {'name': 'Chile Node', 'status': 'active', 'accounts': 8450,
+                  'volume': '$1.1M', 'last_sync': '5s ago', 'sync_status': 'recent'},
+        'colombia': {'name': 'Colombia Node', 'status': 'active', 'accounts': 28910,
+                     'volume': '$5.1M', 'last_sync': 'Just now', 'sync_status': 'recent'}
     }
-
-    coordinator = {
-        'name': 'HQ Master',
-        'status': 'Syncing active nodes'
-    }
-
+    coordinator = {'name': 'HQ Master', 'status': 'Syncing active nodes'}
     user = get_user()
-    return render_template('banks.html',
-                           user=user,
-                           active_page='banks',
-                           banks=banks,
-                           coordinator=coordinator)
-    
+    return render_template('banks.html', user=user, active_page='banks',
+                           banks=banks_data, coordinator=coordinator)
+
 @app.route('/monitoring')
 def monitoring():
     if 'user' not in session:
         return redirect(url_for('login'))
-    
-    # Datos dummy de monitoreo (luego se obtendrán de Prometheus/gRPC)
+
     metrics = {
         'cluster_health': 'Healthy',
         'time_range': '15m',
@@ -386,22 +228,12 @@ def monitoring():
             {'name': 'Node-A', 'cpu': 75, 'color': '[#3b82f6]'},
             {'name': 'Node-B', 'cpu': 45, 'color': '[#10b981]'},
             {'name': 'Node-C', 'cpu': 82, 'color': '[#f59e0b]'},
-            {'name': 'Node-D', 'cpu': 95, 'color': '[#ef4444]'},
-            {'name': 'Node-E', 'cpu': 30, 'color': '[#8b5cf6]'}
         ],
         'logs': [
-            {'timestamp': '2023-10-27 14:32:01.442', 'level': 'INFO', 'message': 'Node-C initiated Bully Election (ID: 8492). Higher ID nodes pinged.'},
-            {'timestamp': '2023-10-27 14:32:01.445', 'level': 'INFO', 'message': 'Node-D responded to Election ID: 8492. Node-C stands down.'},
-            {'timestamp': '2023-10-27 14:32:01.450', 'level': 'SUCCESS', 'message': 'Node-D broadcasts Victory. New Coordinator established.'},
-            {'timestamp': '2023-10-27 14:32:05.112', 'level': 'INFO', 'message': '2PC Phase 1: Prepare sent to 5 participants (TxID: 99xA4).'},
-            {'timestamp': '2023-10-27 14:32:05.184', 'level': 'WARN', 'message': '2PC Latency spike detected on Node-B (72ms).'},
-            {'timestamp': '2023-10-27 14:32:05.190', 'level': 'INFO', 'message': '2PC Phase 1: All participants returned VOTE_COMMIT.'},
-            {'timestamp': '2023-10-27 14:32:05.195', 'level': 'INFO', 'message': '2PC Phase 2: Global COMMIT broadcast.'},
-            {'timestamp': '2023-10-27 14:32:05.210', 'level': 'SUCCESS', 'message': 'Transaction 99xA4 finalized. Total latency: 98ms.'},
-            {'timestamp': '2023-10-27 14:32:08.001', 'level': 'ERROR', 'message': 'Node-E unresponsive to heartbeat. Initiating timeout protocol.'}
+            {'timestamp': '2023-10-27 14:32:01.442', 'level': 'INFO', 'message': 'Node-C initiated Bully Election.'},
+            {'timestamp': '2023-10-27 14:32:01.450', 'level': 'SUCCESS', 'message': 'Node-D broadcasts Victory.'},
         ]
     }
-    
     user = get_user()
     return render_template('monitoring.html', user=user, active_page='monitoring', metrics=metrics)
 
@@ -410,114 +242,20 @@ def coordination():
     if 'user' not in session:
         return redirect(url_for('login'))
 
-    # Obtener estado real del clúster desde los bancos
     nodes, events = get_cluster_state()
-
-    # Determinar quién es el coordinador actual
     leader_node = next((n for n in nodes if n['state'] == 'LEADER'), nodes[0])
     coordinator = {
         'name': leader_node['name'],
         'short_name': leader_node['short_name'],
-        'details': f"ID: {leader_node['priority']} • Region: South America",
+        'details': f"ID: {leader_node['priority']}",
         'state': 'STABLE' if leader_node['state'] == 'LEADER' else 'ELECTION'
     }
-
     user = get_user()
-    return render_template('coordination.html',
-                           user=user,
-                           active_page='coordination',
-                           coordinator=coordinator,
-                           nodes=nodes,
-                           events=events)
+    return render_template('coordination.html', user=user, active_page='coordination',
+                           coordinator=coordinator, nodes=nodes, events=events)
 
-
-@app.route('/api/cluster-state')
-def api_cluster_state():
-    nodes, events = get_cluster_state()
-    # apply overrides
-    if cluster_overrides['forced_leader']:
-        forced = cluster_overrides['forced_leader']
-        for n in nodes:
-            if n['name'] == forced:
-                n['state'] = 'LEADER'
-            elif n['state'] != 'DISCONNECTED':
-                n['state'] = 'FOLLOWER'
-        events.insert(0, {'type':'info','time':'Now','title':'Forced leader','description':f'{forced} set as leader (override)'} )
-    for d in cluster_overrides['disconnected']:
-        for n in nodes:
-            if n['name'] == d:
-                n['state'] = 'DISCONNECTED'
-    return {'nodes': nodes, 'events': events}
-
-
-@app.route('/api/force-election', methods=['POST'])
-def api_force_election():
-    data = request.get_json(silent=True) or {}
-    node = data.get('node')
-    if node:
-        # set forced leader
-        cluster_overrides['forced_leader'] = node
-        _save_overrides()
-        # Try to notify peers via gRPC Coordinator where possible (best-effort)
-        # Map node string to numeric id and bank key
-        id_map = {'Peru': 'peru', 'Chile': 'chile', 'Colombia': 'colombia'}
-        node_bank = None
-        for k, v in id_map.items():
-            if k in node:
-                node_bank = v
-        bank_ids = {'peru': 3, 'chile': 2, 'colombia': 1}
-        leader_id = bank_ids.get(node_bank)
-        if leader_id:
-            try:
-                # broadcast Coordinator to all reachable banks so they accept this leader
-                from bank_client import BANKS, get_stub
-                for bank_key in BANKS.keys():
-                    try:
-                        stub = get_stub(bank_key)
-                        stub.Coordinator(bank_pb2.CoordinatorRequest(leader_id=str(leader_id)), timeout=1)
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-        return {'status': 'ok', 'message': f'Forced election: {node}'}, 200
-    # clear forced leader to let normal election happen
-    cluster_overrides['forced_leader'] = None
-    return {'status': 'ok', 'message': 'Election requested'}, 200
-
-
-@app.route('/api/node/<path:node_id>/toggle', methods=['POST'])
-def api_node_toggle(node_id):
-    # node_id expected to match node['name'] used in templates
-    # Toggle presence in disconnected set
-    if node_id in cluster_overrides['disconnected']:
-        cluster_overrides['disconnected'].remove(node_id)
-        _save_overrides()
-        return {'status':'ok','message':'node reconnected'}
-    else:
-        cluster_overrides['disconnected'].add(node_id)
-        _save_overrides()
-        return {'status':'ok','message':'node disconnected'}
-
-
-@app.route('/api/export-logs')
-def api_export_logs():
-    # Generate a small log file from recent events for download
-    nodes, events = get_cluster_state()
-    lines = []
-    lines.append('=== Coordination Logs ===')
-    lines.append(time.strftime('%Y-%m-%d %H:%M:%S'))
-    for e in events:
-        lines.append(f"[{e.get('type','info').upper()}] {e.get('time','Now')} - {e.get('title','')} - {e.get('description','')}")
-    content = '\n'.join(lines)
-    from flask import Response
-    return Response(content, mimetype='text/plain', headers={"Content-Disposition": "attachment;filename=coordination-logs.txt"})
-
-@app.route('/error', endpoint='error')
-def error_page():
-    # Esta vista puede recibir parámetros por query string para simular distintos fallos
-    error_info = request.args.get('info', 'disconnection')
-
-    # Datos dummy del estado de recuperación
+@app.route('/error')
+def error():
     recovery = {
         'status_message': 'AUTOMATIC RECOVERY IN PROGRESS',
         'trigger': 'Timeout Threshold Reached',
@@ -526,30 +264,16 @@ def error_page():
         'eta': '~15s',
         'button_text': 'Retry Connection'
     }
-
-    failed_node = {
-        'name': 'Node #3 (Colombia)',
-        'status': 'Disconnected',
-        'last_ping': '42s ago'
-    }
-
+    failed_node = {'name': 'Node #3 (Colombia)', 'status': 'Disconnected', 'last_ping': '42s ago'}
     user = get_user() if 'user' in session else None
-    return render_template('error.html',
-                           user=user,
-                           active_page='error',
-                           recovery=recovery,
-                           failed_node=failed_node,
+    return render_template('error.html', user=user, active_page='error',
+                           recovery=recovery, failed_node=failed_node,
                            error_title='System state restoring',
-                           error_message='The coordinator detected a disruption in the network topology. A rollback was executed to maintain ledger integrity, and automatic reconciliation is underway.')
-   
-def get_user():
-    return {
-        'name': session.get('user', 'Admin'),
-        'bank_name': 'Global Finance',
-        'role': 'Institutional Node #12',
-        'avatar_url': 'https://ui-avatars.com/api/?name=Admin&background=316bf3&color=fff'
-    }
-    
+                           error_message='The coordinator detected a disruption...')
+
+# ------------------------------------------------------------
+# Endpoints API para transferencias y coordinación
+# ------------------------------------------------------------
 @app.route('/api/transfer', methods=['POST'])
 def api_transfer():
     data = request.get_json()
@@ -560,7 +284,6 @@ def api_transfer():
     amount = float(data['amount'])
 
     if source_bank == dest_bank:
-        # Transferencia local (usa el método existente)
         stub = get_stub(source_bank)
         resp = stub.TransferLocal(bank_pb2.TransferRequest(
             source_account=source_account,
@@ -571,19 +294,119 @@ def api_transfer():
         if resp.success:
             global transactions_today_count
             transactions_today_count += 1
-            return {'success': True, 'message': resp.message, 'tx_id': resp.transaction_id}
+            return jsonify({'success': True, 'message': resp.message, 'tx_id': resp.transaction_id})
         else:
-            return {'success': False, 'message': resp.message}
+            return jsonify({'success': False, 'message': resp.message})
     else:
-        # Transferencia interbancaria con 2PC
         success, message, tx_id = execute_interbank_transfer(
             source_bank, source_account, dest_bank, dest_account, amount
         )
         if success:
             transactions_today_count
             transactions_today_count += 1
-        return {'success': success, 'message': message, 'tx_id': tx_id}
-    
+        return jsonify({'success': success, 'message': message, 'tx_id': tx_id})
+
+@app.route('/coordination/data')
+def coordination_data():
+    if 'user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    nodes, events = get_cluster_state()
+    leader_node = next((n for n in nodes if n['state'] == 'LEADER'), nodes[0])
+    coordinator = {
+        'name': leader_node['name'],
+        'short_name': leader_node['short_name'],
+        'details': f"ID: {leader_node['priority']}",
+        'state': 'STABLE' if leader_node['state'] == 'LEADER' else 'ELECTION'
+    }
+    return jsonify({'nodes': nodes, 'coordinator': coordinator})
+
+@app.route('/api/events')
+def api_events():
+    all_events = []
+    for bank in BANKS:
+        try:
+            stub = get_stub(bank)
+            resp = stub.GetEvents(bank_pb2.EventsRequest(), timeout=2)
+            for evt in resp.events:
+                all_events.append({
+                    "timestamp": evt.timestamp,
+                    "type": evt.type,
+                    "title": evt.title,
+                    "description": evt.description
+                })
+        except Exception:
+            pass
+    all_events.sort(key=lambda x: x['timestamp'], reverse=True)
+    return jsonify(all_events[:30])
+
+@app.route('/api/force-election', methods=['POST'])
+def force_election():
+    data = request.get_json(silent=True) or {}
+    target_node = data.get('node')
+    if target_node:
+        bank = None
+        if target_node.startswith("Node #"):
+            num = target_node.split("#")[1].split(" ")[0]
+            mapping = {"3": "peru", "2": "chile", "1": "colombia"}
+            bank = mapping.get(num)
+        if bank and bank in BANKS:
+            try:
+                stub = get_stub(bank)
+                stub.Election(bank_pb2.ElectionRequest(candidate_id="0"), timeout=2)
+            except Exception:
+                pass
+    else:
+        for bank in BANKS:
+            try:
+                stub = get_stub(bank)
+                stub.Election(bank_pb2.ElectionRequest(candidate_id="0"), timeout=2)
+            except Exception:
+                pass
+    return jsonify({"success": True})
+
+@app.route('/api/node/<node_id>/toggle', methods=['POST'])
+def toggle_node(node_id):
+    bank = None
+    if node_id.startswith("Node #"):
+        num = node_id.split("#")[1].split(" ")[0]
+        mapping = {"3": "peru", "2": "chile", "1": "colombia"}
+        bank = mapping.get(num)
+    elif node_id.startswith("N"):
+        num = node_id[1]
+        mapping = {"3": "peru", "2": "chile", "1": "colombia"}
+        bank = mapping.get(num)
+    if not bank:
+        return jsonify({"error": "Node not found"}), 404
+
+    new_state = not manual_pause_state[bank]
+    manual_pause_state[bank] = new_state
+
+    try:
+        stub = get_stub(bank)
+        resp = stub.SetNodeStatus(bank_pb2.NodeStatusRequest(paused=new_state), timeout=2)
+        if resp.success:
+            return jsonify({"success": True, "paused": new_state, "message": resp.message})
+        else:
+            return jsonify({"error": resp.message}), 500
+    except Exception as e:
+        return jsonify({"success": True, "paused": new_state, "warning": f"Server not reached: {e}"})
+
+@app.route('/api/export-logs')
+def export_logs():
+    lines = []
+    for bank in BANKS:
+        try:
+            stub = get_stub(bank)
+            resp = stub.GetEvents(bank_pb2.EventsRequest(), timeout=2)
+            lines.append(f"--- {bank} ---")
+            for evt in resp.events:
+                lines.append(f"[{evt.timestamp}] {evt.title}: {evt.description}")
+        except Exception:
+            lines.append(f"--- {bank} (unreachable) ---")
+    content = "\n".join(lines)
+    return Response(content, mimetype="text/plain",
+                    headers={"Content-Disposition": "attachment;filename=coordination-logs.txt"})
+
+# ------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
-    

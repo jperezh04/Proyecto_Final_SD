@@ -9,13 +9,11 @@ from datetime import datetime, timezone
 import threading
 import time
 
-# ---------- CONFIGURACIÓN ----------
 NODE_ID = "colombia"
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ACCOUNTS_DIR = os.path.join(DATA_DIR, "accounts")
 PENDING_DIR = os.path.join(DATA_DIR, "pending")
 
-# ---------- PERSISTENCIA ----------
 def load_account(account_id):
     path = os.path.join(ACCOUNTS_DIR, f"{account_id}.json")
     if not os.path.exists(path):
@@ -40,50 +38,44 @@ def remove_pending(tx_id):
     if os.path.exists(path):
         os.remove(path)
 
-# ---------- SERVICIO gRPC ----------
 class BankService(bank_pb2_grpc.BankServiceServicer):
     def __init__(self):
-        # Estado del nodo
-        self.node_id = 1  # Colombia: ID 1
+        self.node_id = 1
         self.leader_id = None
-        self.state = "FOLLOWER"  # Se determinará al iniciar
-
-        # Peers (ID -> dirección)
+        self.state = "FOLLOWER"
         self.peers = {
-            3: "localhost:50051",  # Peru
-            2: "localhost:50052"   # Chile
+            3: "localhost:50051",
+            2: "localhost:50052"
         }
-
-        # Configuración de tiempos
-        self.heartbeat_interval = 2       # segundos entre heartbeats
-        self.election_timeout = 4         # segundos sin heartbeat del líder antes de iniciar elección
+        self.heartbeat_interval = 3
+        self.election_timeout = 6
         self.last_heartbeat_from_leader = time.time()
-
-        # Control de concurrencia y elecciones
         self.election_lock = threading.Lock()
         self._election_in_progress = False
-
-        # Bloqueos para 2PC
         self.pending_2pc = {}
         self.account_locks = {}
         self.global_lock = threading.Lock()
+        self.manual_pause = False
+        self.event_log = []
 
-        # Iniciar el cluster: esperar un poco y luego determinar el líder inicial
         threading.Thread(target=self._startup, daemon=True).start()
 
-    # ---------- MÉTODOS DE BULLY ----------
+    def _log_event(self, type, title, description):
+        self.event_log.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "type": type,
+            "title": title,
+            "description": description
+        })
+
     def _startup(self):
-        """Espera breve y luego fuerza una elección si no hay líder."""
-        time.sleep(1)  # Dar tiempo a que todos los servidores estén listos
-        if self.node_id == max(self.peers.keys() | {self.node_id}):
-            # Soy el mayor ID, me autoproclamo líder directamente
+        time.sleep(1)
+        if self.node_id == max(list(self.peers.keys()) + [self.node_id]):
             self.become_leader()
         else:
-            # Inicio elección para descubrir al líder
             self.start_election()
 
     def _send_heartbeat(self, peer_id, address):
-        """Envía heartbeat a un peer."""
         try:
             channel = grpc.insecure_channel(address)
             stub = bank_pb2_grpc.BankServiceStub(channel)
@@ -93,7 +85,6 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             return False
 
     def _send_election(self, peer_id, address):
-        """Envía mensaje de elección a un peer mayor."""
         try:
             channel = grpc.insecure_channel(address)
             stub = bank_pb2_grpc.BankServiceStub(channel)
@@ -103,7 +94,6 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             return False
 
     def _send_coordinator(self, peer_id, address):
-        """Notifica a un peer que este nodo es el nuevo coordinador."""
         try:
             channel = grpc.insecure_channel(address)
             stub = bank_pb2_grpc.BankServiceStub(channel)
@@ -112,99 +102,106 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             pass
 
     def _heartbeat_loop(self):
-        """Envía heartbeats al líder si no somos el líder."""
         while True:
             time.sleep(self.heartbeat_interval)
+            if self.manual_pause:
+                continue
             if self.state == "FOLLOWER" and self.leader_id is not None:
                 leader_addr = self.peers.get(self.leader_id)
                 if leader_addr:
-                    if not self._send_heartbeat(self.leader_id, leader_addr):
-                        print(f"Líder {self.leader_id} no responde a heartbeat")
-                        # No forzamos elección aquí; el _election_check_loop lo hará tras el timeout
+                    self._send_heartbeat(self.leader_id, leader_addr)
 
     def _election_check_loop(self):
-        """Monitorea si el líder sigue vivo y dispara elección si es necesario."""
         while True:
             time.sleep(1)
+            if self.manual_pause:
+                continue
             if self.state == "FOLLOWER" and self.leader_id is not None:
                 if time.time() - self.last_heartbeat_from_leader > self.election_timeout:
-                    print(f"Tiempo de espera agotado para líder {self.leader_id}. Iniciando elección (nodo {self.node_id})")
+                    print(f"[{self.node_id}] Leader {self.leader_id} timeout. Starting election.")
                     self.start_election()
 
     def start_election(self):
-        """Inicia el algoritmo Bully."""
         with self.election_lock:
             if self._election_in_progress or self.state == "LEADER":
-                return  # Ya hay una elección en curso o ya soy líder
+                return
             self._election_in_progress = True
-
-        print(f"Nodo {self.node_id} inicia elección")
         self.state = "CANDIDATE"
+        self._log_event("election", f"Node {self.node_id} started election", "Heartbeat timeout detected")
+        print(f"[{self.node_id}] Starting election.")
         higher_nodes = [nid for nid in self.peers if nid > self.node_id]
-
         if not higher_nodes:
-            # No hay nadie con mayor ID, me proclamo líder directamente
             self.become_leader()
             with self.election_lock:
                 self._election_in_progress = False
             return
-
-        # Preguntar a los nodos con mayor ID
-        for nid in sorted(higher_nodes, reverse=True):  # Empezar por el más alto
+        for nid in sorted(higher_nodes, reverse=True):
             if self._send_election(nid, self.peers[nid]):
-                print(f"Nodo {nid} respondió a mi elección. Esperando su victoria.")
-                # Un nodo mayor respondió; él tomará el control
+                print(f"[{self.node_id}] Higher node {nid} responded. Waiting for coordinator.")
                 with self.election_lock:
                     self._election_in_progress = False
                 return
-
-        # Nadie respondió, me proclamo líder
         self.become_leader()
         with self.election_lock:
             self._election_in_progress = False
 
     def become_leader(self):
-        """Se proclama coordinador y notifica a todos los peers."""
         self.state = "LEADER"
         self.leader_id = self.node_id
-        self.last_heartbeat_from_leader = time.time()  # ¡Importante! Para no reiniciar elección
-        print(f"Nodo {self.node_id} se proclama COORDINADOR")
+        self.last_heartbeat_from_leader = time.time()
+        self._log_event("election", f"Node {self.node_id} became LEADER", "Coordinator broadcast sent")
+        print(f"[{self.node_id}] Became COORDINATOR.")
         for nid, addr in self.peers.items():
             if nid != self.node_id:
                 self._send_coordinator(nid, addr)
 
-    # ---------- MÉTODOS gRPC (BULLY) ----------
     def Heartbeat(self, request, context):
-        # Actualizar el tiempo del último heartbeat si somos seguidores
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            return bank_pb2.HeartbeatResponse()
         if self.state == "FOLLOWER":
             self.last_heartbeat_from_leader = time.time()
         return bank_pb2.HeartbeatResponse(alive=True, leader_id=str(self.leader_id) if self.leader_id else "")
 
     def Election(self, request, context):
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            return bank_pb2.ElectionResponse()
         candidate_id = int(request.candidate_id)
-        print(f"Recibido mensaje de elección de nodo {candidate_id}")
         if candidate_id < self.node_id:
-            # Un nodo menor quiere iniciar elección; respondemos y tomamos el control
-            print(f"Nodo {self.node_id} (mayor) responde a elección de {candidate_id}")
-            # Iniciamos nuestra propia elección (si no hay una en curso)
             if not self._election_in_progress:
                 self.start_election()
             return bank_pb2.ElectionResponse(acknowledged=True)
-        else:
-            # El candidato es mayor o igual; no respondemos
-            return bank_pb2.ElectionResponse(acknowledged=False)
+        return bank_pb2.ElectionResponse(acknowledged=False)
 
     def Coordinator(self, request, context):
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            return bank_pb2.CoordinatorResponse()
         new_leader = int(request.leader_id)
-        print(f"Nodo {self.node_id} acepta nuevo líder: {new_leader}")
         self.leader_id = new_leader
         self.state = "FOLLOWER"
         self.last_heartbeat_from_leader = time.time()
         with self.election_lock:
             self._election_in_progress = False
+        self._log_event("sync", f"Accepted new leader: Node {new_leader}", "Coordinator change acknowledged")
+        print(f"[{self.node_id}] New leader: {new_leader}")
         return bank_pb2.CoordinatorResponse(accepted=True)
 
-    # ---------- OPERACIONES BANCARIAS (2PC) ----------
+    def GetEvents(self, request, context):
+        return bank_pb2.EventsResponse(
+            events=[bank_pb2.Event(**e) for e in self.event_log[-30:]]
+        )
+
+    def SetNodeStatus(self, request, context):
+        self.manual_pause = request.paused
+        estado = "paused" if self.manual_pause else "resumed"
+        self._log_event("failure" if self.manual_pause else "sync",
+                        f"Node {self.node_id} {estado} manually",
+                        f"Manual override {'enabled' if self.manual_pause else 'disabled'}")
+        print(f"[{self.node_id}] Manual pause: {self.manual_pause}")
+        return bank_pb2.NodeStatusResponse(success=True, message=f"Node {self.node_id} {estado}")
+
     def _get_lock(self, account_id):
         with self.global_lock:
             if account_id not in self.account_locks:
@@ -231,11 +228,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             account["balance"] += request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
-            return bank_pb2.TransactionResponse(
-                success=True,
-                message="Deposit successful",
-                new_balance=account["balance"]
-            )
+            return bank_pb2.TransactionResponse(success=True, message="Deposit successful", new_balance=account["balance"])
 
     def Withdraw(self, request, context):
         lock = self._get_lock(request.account_id)
@@ -248,11 +241,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             account["balance"] -= request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
-            return bank_pb2.TransactionResponse(
-                success=True,
-                message="Withdrawal successful",
-                new_balance=account["balance"]
-            )
+            return bank_pb2.TransactionResponse(success=True, message="Withdrawal successful", new_balance=account["balance"])
 
     def TransferLocal(self, request, context):
         ids = sorted([request.source_account, request.dest_account])
@@ -273,43 +262,24 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             save_account(request.source_account, src)
             save_account(request.dest_account, dst)
             tx_id = str(uuid.uuid4())
-            return bank_pb2.TransferResponse(
-                success=True,
-                message="Local transfer successful",
-                transaction_id=tx_id
-            )
+            return bank_pb2.TransferResponse(success=True, message="Local transfer successful", transaction_id=tx_id)
 
     def Prepare(self, request, context):
         tx_id = request.transaction_id
         acc_id = request.account_id
         amount = request.amount
         op_type = request.operation_type
-
         lock = self._get_lock(acc_id)
         if not lock.acquire(blocking=False):
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
-
         try:
             account = load_account(acc_id)
             if not account:
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
-
             if op_type == "debit" and account["balance"] < amount:
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
-
-            self.pending_2pc[tx_id] = {
-                "account_id": acc_id,
-                "amount": amount,
-                "op_type": op_type,
-                "lock": lock
-            }
-            save_pending(tx_id, {
-                "account_id": acc_id,
-                "amount": amount,
-                "op_type": op_type,
-                "status": "PREPARED",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            self.pending_2pc[tx_id] = {"account_id": acc_id, "amount": amount, "op_type": op_type, "lock": lock}
+            save_pending(tx_id, {"account_id": acc_id, "amount": amount, "op_type": op_type, "status": "PREPARED", "timestamp": datetime.now(timezone.utc).isoformat()})
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=True)
         except Exception as e:
             lock.release()
@@ -320,20 +290,16 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         pending = self.pending_2pc.get(tx_id)
         if not pending:
             return bank_pb2.CommitResponse(success=False)
-
         try:
             account = load_account(pending["account_id"])
             if not account:
                 return bank_pb2.CommitResponse(success=False)
-
             if pending["op_type"] == "debit":
                 account["balance"] -= pending["amount"]
             elif pending["op_type"] == "credit":
                 account["balance"] += pending["amount"]
-
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(pending["account_id"], account)
-
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)
@@ -349,14 +315,11 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         pending = self.pending_2pc.get(tx_id)
         if not pending:
             return bank_pb2.AbortResponse(success=True)
-
         pending["lock"].release()
         del self.pending_2pc[tx_id]
         remove_pending(tx_id)
         return bank_pb2.AbortResponse(success=True)
 
-
-# ---------- SERVIDOR ----------
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     service = BankService()
@@ -364,7 +327,6 @@ def serve():
     port = "50053"
     server.add_insecure_port(f"[::]:{port}")
     print(f"Banco Colombia (gRPC) corriendo en puerto {port}")
-    # Iniciar hilos de Bully **después** de crear el servicio
     threading.Thread(target=service._heartbeat_loop, daemon=True).start()
     threading.Thread(target=service._election_check_loop, daemon=True).start()
     server.start()

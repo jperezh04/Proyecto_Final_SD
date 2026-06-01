@@ -5,7 +5,7 @@ import warnings
 
 import bank_pb2 as bank__pb2
 
-GRPC_GENERATED_VERSION = '1.80.0'
+GRPC_GENERATED_VERSION = '1.81.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -25,9 +25,8 @@ if _version_not_supported:
     )
 
 
-class BankServiceStub(object):
-    """---------- SERVICIOS ----------
-    """
+class BankServiceStub:
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -85,15 +84,23 @@ class BankServiceStub(object):
                 request_serializer=bank__pb2.CoordinatorRequest.SerializeToString,
                 response_deserializer=bank__pb2.CoordinatorResponse.FromString,
                 _registered_method=True)
+        self.GetEvents = channel.unary_unary(
+                '/bank.BankService/GetEvents',
+                request_serializer=bank__pb2.EventsRequest.SerializeToString,
+                response_deserializer=bank__pb2.EventsResponse.FromString,
+                _registered_method=True)
+        self.SetNodeStatus = channel.unary_unary(
+                '/bank.BankService/SetNodeStatus',
+                request_serializer=bank__pb2.NodeStatusRequest.SerializeToString,
+                response_deserializer=bank__pb2.NodeStatusResponse.FromString,
+                _registered_method=True)
 
 
-class BankServiceServicer(object):
-    """---------- SERVICIOS ----------
-    """
+class BankServiceServicer:
+    """Missing associated documentation comment in .proto file."""
 
     def GetBalance(self, request, context):
-        """Operaciones básicas
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -117,8 +124,7 @@ class BankServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Prepare(self, request, context):
-        """Two-Phase Commit (interbancario)
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -136,8 +142,7 @@ class BankServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Heartbeat(self, request, context):
-        """Bully Election
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -149,6 +154,18 @@ class BankServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Coordinator(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetEvents(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetNodeStatus(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -207,6 +224,16 @@ def add_BankServiceServicer_to_server(servicer, server):
                     request_deserializer=bank__pb2.CoordinatorRequest.FromString,
                     response_serializer=bank__pb2.CoordinatorResponse.SerializeToString,
             ),
+            'GetEvents': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetEvents,
+                    request_deserializer=bank__pb2.EventsRequest.FromString,
+                    response_serializer=bank__pb2.EventsResponse.SerializeToString,
+            ),
+            'SetNodeStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetNodeStatus,
+                    request_deserializer=bank__pb2.NodeStatusRequest.FromString,
+                    response_serializer=bank__pb2.NodeStatusResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'bank.BankService', rpc_method_handlers)
@@ -215,9 +242,8 @@ def add_BankServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class BankService(object):
-    """---------- SERVICIOS ----------
-    """
+class BankService:
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def GetBalance(request,
@@ -479,6 +505,60 @@ class BankService(object):
             '/bank.BankService/Coordinator',
             bank__pb2.CoordinatorRequest.SerializeToString,
             bank__pb2.CoordinatorResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetEvents(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/bank.BankService/GetEvents',
+            bank__pb2.EventsRequest.SerializeToString,
+            bank__pb2.EventsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetNodeStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/bank.BankService/SetNodeStatus',
+            bank__pb2.NodeStatusRequest.SerializeToString,
+            bank__pb2.NodeStatusResponse.FromString,
             options,
             channel_credentials,
             insecure,
