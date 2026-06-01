@@ -9,6 +9,31 @@ from datetime import datetime, timezone
 import threading
 import time
 
+# ── Prometheus ────────────────────────────────────────────────────────────────
+from prometheus_client import Counter, Histogram, Gauge, start_http_server
+
+NODE_LABEL = "chile"
+METRICS_PORT = 8001
+
+tx_counter = Counter(
+    "bank_transactions_total",
+    "Total de transacciones procesadas",
+    ["node", "type"]          # type: deposit | withdraw | transfer_local | prepare | commit | abort
+)
+twopc_duration = Histogram(
+    "bank_2pc_duration_seconds",
+    "Duración de las fases del 2PC",
+    ["node", "phase"],        # phase: prepare | commit | abort
+    buckets=[.001, .005, .01, .025, .05, .1, .25, .5, 1.0]
+)
+node_state_gauge = Gauge(
+    "bank_node_state",
+    "Estado del nodo: 1=LEADER, 0=FOLLOWER, -1=PAUSED",
+    ["node"]
+)
+node_state_gauge.labels(node=NODE_LABEL).set(0)  # arranca como FOLLOWER
+# ─────────────────────────────────────────────────────────────────────────────
+
 NODE_ID = "chile"
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ACCOUNTS_DIR = os.path.join(DATA_DIR, "accounts")
@@ -66,6 +91,14 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             "description": description
         })
 
+    def _update_state_gauge(self):
+        if self.manual_pause:
+            node_state_gauge.labels(node=NODE_LABEL).set(-1)
+        elif self.state == "LEADER":
+            node_state_gauge.labels(node=NODE_LABEL).set(1)
+        else:
+            node_state_gauge.labels(node=NODE_LABEL).set(0)
+
     def _startup(self):
         time.sleep(1)
         if self.node_id == max(list(self.peers.keys()) + [self.node_id]):
@@ -100,7 +133,6 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             pass
 
     def _heartbeat_loop(self):
-        """Leader sends heartbeats to all followers to assert its authority."""
         while True:
             time.sleep(self.heartbeat_interval)
             if self.manual_pause:
@@ -110,12 +142,10 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                     self._send_heartbeat(peer_id, addr)
 
     def _election_check_loop(self):
-        """Followers check if leader heartbeat has timed out and start election if needed."""
         while True:
             time.sleep(1)
             if self.manual_pause:
                 continue
-            # Trigger election if we are a follower AND either no leader known or leader timed out
             if self.state == "FOLLOWER":
                 if time.time() - self.last_heartbeat_from_leader > self.election_timeout:
                     print(f"[{self.node_id}] Leader timeout. Starting election.")
@@ -127,6 +157,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 return
             self._election_in_progress = True
         self.state = "CANDIDATE"
+        self._update_state_gauge()
         self._log_event("election", f"Node {self.node_id} started election", "Heartbeat timeout detected")
         print(f"[{self.node_id}] Starting election.")
         higher_nodes = [nid for nid in self.peers if nid > self.node_id]
@@ -149,17 +180,19 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         self.state = "LEADER"
         self.leader_id = self.node_id
         self.last_heartbeat_from_leader = time.time()
+        self._update_state_gauge()
         self._log_event("election", f"Node {self.node_id} became LEADER", "Coordinator broadcast sent")
         print(f"[{self.node_id}] Became COORDINATOR.")
         for nid, addr in self.peers.items():
             if nid != self.node_id:
                 self._send_coordinator(nid, addr)
 
+    # ── gRPC handlers ──────────────────────────────────────────────────────
+
     def Heartbeat(self, request, context):
         if self.manual_pause:
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             return bank_pb2.HeartbeatResponse()
-        # Reset heartbeat timer whenever we receive a heartbeat (we are a follower)
         if self.state != "LEADER":
             self.last_heartbeat_from_leader = time.time()
         return bank_pb2.HeartbeatResponse(alive=True, leader_id=str(self.leader_id) if self.leader_id else "")
@@ -170,24 +203,22 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             return bank_pb2.ElectionResponse()
         candidate_id = int(request.candidate_id)
         if candidate_id < self.node_id:
-            # Candidato de menor prioridad: me impongo y arranco mi propia elección
             if not self._election_in_progress:
                 threading.Thread(target=self.start_election, daemon=True).start()
             return bank_pb2.ElectionResponse(acknowledged=True)
         elif candidate_id > self.node_id:
-            # Llegó alguien de MAYOR prioridad: me rindo, paso a FOLLOWER
-            # y espero su mensaje Coordinator
+            # Nodo de mayor prioridad regresó: me rindo
             self.state = "FOLLOWER"
-            self.leader_id = None  # esperamos el Coordinator broadcast
+            self.leader_id = None
             with self.election_lock:
                 self._election_in_progress = False
+            self._update_state_gauge()
             self._log_event("sync",
                             f"Node {self.node_id} defers to Node {candidate_id}",
                             "Higher-priority node re-joined; stepping down")
             print(f"[{self.node_id}] Deferring to higher node {candidate_id}")
             return bank_pb2.ElectionResponse(acknowledged=False)
         else:
-            # candidate_id == self.node_id: mensaje propio, ignorar
             return bank_pb2.ElectionResponse(acknowledged=False)
 
     def Coordinator(self, request, context):
@@ -200,6 +231,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         self.last_heartbeat_from_leader = time.time()
         with self.election_lock:
             self._election_in_progress = False
+        self._update_state_gauge()
         self._log_event("sync", f"Accepted new leader: Node {new_leader}", "Coordinator change acknowledged")
         print(f"[{self.node_id}] New leader: {new_leader}")
         return bank_pb2.CoordinatorResponse(accepted=True)
@@ -212,6 +244,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
     def SetNodeStatus(self, request, context):
         self.manual_pause = request.paused
         estado = "paused" if self.manual_pause else "resumed"
+        self._update_state_gauge()
         self._log_event("failure" if self.manual_pause else "sync",
                         f"Node {self.node_id} {estado} manually",
                         f"Manual override {'enabled' if self.manual_pause else 'disabled'}")
@@ -244,6 +277,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             account["balance"] += request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
+            tx_counter.labels(node=NODE_LABEL, type="deposit").inc()
             return bank_pb2.TransactionResponse(success=True, message="Deposit successful", new_balance=account["balance"])
 
     def Withdraw(self, request, context):
@@ -257,6 +291,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             account["balance"] -= request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
+            tx_counter.labels(node=NODE_LABEL, type="withdraw").inc()
             return bank_pb2.TransactionResponse(success=True, message="Withdrawal successful", new_balance=account["balance"])
 
     def TransferLocal(self, request, context):
@@ -278,32 +313,42 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             save_account(request.source_account, src)
             save_account(request.dest_account, dst)
             tx_id = str(uuid.uuid4())
+            tx_counter.labels(node=NODE_LABEL, type="transfer_local").inc()
             return bank_pb2.TransferResponse(success=True, message="Local transfer successful", transaction_id=tx_id)
 
     def Prepare(self, request, context):
+        start = time.time()
         tx_id = request.transaction_id
         acc_id = request.account_id
         amount = request.amount
         op_type = request.operation_type
         lock = self._get_lock(acc_id)
         if not lock.acquire(blocking=False):
+            twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
         try:
             account = load_account(acc_id)
             if not account:
                 lock.release()
+                twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
             if op_type == "debit" and account["balance"] < amount:
                 lock.release()
+                twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
             self.pending_2pc[tx_id] = {"account_id": acc_id, "amount": amount, "op_type": op_type, "lock": lock}
-            save_pending(tx_id, {"account_id": acc_id, "amount": amount, "op_type": op_type, "status": "PREPARED", "timestamp": datetime.now(timezone.utc).isoformat()})
+            save_pending(tx_id, {"account_id": acc_id, "amount": amount, "op_type": op_type,
+                                  "status": "PREPARED", "timestamp": datetime.now(timezone.utc).isoformat()})
+            tx_counter.labels(node=NODE_LABEL, type="prepare").inc()
+            twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=True)
-        except Exception as e:
+        except Exception:
             lock.release()
+            twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
 
     def Commit(self, request, context):
+        start = time.time()
         tx_id = request.transaction_id
         pending = self.pending_2pc.get(tx_id)
         if not pending:
@@ -324,14 +369,17 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)
+            tx_counter.labels(node=NODE_LABEL, type="commit").inc()
+            twopc_duration.labels(node=NODE_LABEL, phase="commit").observe(time.time() - start)
             return bank_pb2.CommitResponse(success=True)
-        except Exception as e:
+        except Exception:
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)
             return bank_pb2.CommitResponse(success=False)
 
     def Abort(self, request, context):
+        start = time.time()
         tx_id = request.transaction_id
         pending = self.pending_2pc.get(tx_id)
         if not pending:
@@ -339,16 +387,20 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         pending["lock"].release()
         del self.pending_2pc[tx_id]
         remove_pending(tx_id)
+        tx_counter.labels(node=NODE_LABEL, type="abort").inc()
+        twopc_duration.labels(node=NODE_LABEL, phase="abort").observe(time.time() - start)
         return bank_pb2.AbortResponse(success=True)
 
 
 def serve():
+    start_http_server(METRICS_PORT)
+    print(f"Métricas Prometheus expuestas en http://localhost:{METRICS_PORT}")
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     service = BankService()
     bank_pb2_grpc.add_BankServiceServicer_to_server(service, server)
-    port = "50052"
-    server.add_insecure_port(f"[::]:50052")
-    print(f"Banco Chile (gRPC) corriendo en puerto 50052")
+    server.add_insecure_port("[::]:50052")
+    print("Banco Chile (gRPC) corriendo en puerto 50052")
     threading.Thread(target=service._heartbeat_loop, daemon=True).start()
     threading.Thread(target=service._election_check_loop, daemon=True).start()
     server.start()
@@ -356,6 +408,4 @@ def serve():
 
 
 if __name__ == "__main__":
-    os.makedirs(ACCOUNTS_DIR, exist_ok=True)
-    os.makedirs(PENDING_DIR, exist_ok=True)
     serve()

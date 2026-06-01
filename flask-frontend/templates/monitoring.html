@@ -3,6 +3,13 @@
 {% block title %}Monitoring{% endblock %}
 
 {% block content %}
+
+{% if not metrics.prometheus_ok %}
+<div class="mb-4 px-4 py-3 rounded-lg border border-[#f59e0b]/40 bg-[#f59e0b]/10 text-[#f59e0b] text-sm flex items-center gap-2">
+    <span class="material-symbols-outlined text-[18px]">warning</span>
+    Prometheus no disponible — mostrando datos básicos del cluster. Inicia Prometheus para métricas completas.
+</div>
+{% endif %}
 <!-- Context Header -->
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
     <div>

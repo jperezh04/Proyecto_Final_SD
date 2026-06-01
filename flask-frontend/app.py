@@ -11,6 +11,7 @@ import bank_pb2
 import bank_pb2_grpc
 from two_phase_commit import execute_interbank_transfer
 from bully import get_cluster_state
+import requests as http_requests
 
 load_dotenv()
 
@@ -20,6 +21,9 @@ app.secret_key = os.getenv('SECRET_KEY', 'clave-por-defecto')
 transactions_today_count = 0
 manual_pause_state = {bank: False for bank in BANKS}
 local_event_log = []
+
+PROMETHEUS_URL = "http://localhost:9090"
+
 
 def _log_local_event(etype, title, description):
     local_event_log.append({
@@ -185,26 +189,140 @@ def banks():
     return render_template('banks.html', user=user, active_page='banks',
                            banks=banks_data, coordinator=coordinator)
 
+def _prom_query(query):
+    """Hace una query instantánea a Prometheus. Devuelve el primer valor numérico, o None."""
+    try:
+        r = http_requests.get(f"{PROMETHEUS_URL}/api/v1/query",
+                              params={"query": query}, timeout=2)
+        data = r.json()
+        results = data.get("data", {}).get("result", [])
+        if results:
+            return float(results[0]["value"][1])
+        return None
+    except Exception:
+        return None
+
+def _prom_query_all(query):
+    """Devuelve todos los resultados de una query (para métricas por nodo)."""
+    try:
+        r = http_requests.get(f"{PROMETHEUS_URL}/api/v1/query",
+                              params={"query": query}, timeout=2)
+        data = r.json()
+        return data.get("data", {}).get("result", [])
+    except Exception:
+        return []
+
 @app.route('/monitoring')
 def monitoring():
     if 'user' not in session:
         return redirect(url_for('login'))
-    metrics = {
-        'cluster_health': 'Healthy', 'time_range': '15m',
-        'cpu_load': 42, 'memory_used': 28.4, 'memory_percent': 65,
-        'latency_ms': 124, 'latency_trend': 'up', 'latency_change': '+12',
-        'throughput_tps': 8492, 'throughput_status': 'Healthy',
-        'tpm_heights': [60, 75, 40, 90, 85, 65, 50, 80, 95, 70],
-        'nodes': [
-            {'name': 'Node-A', 'cpu': 75, 'color': '[#3b82f6]'},
-            {'name': 'Node-B', 'cpu': 45, 'color': '[#10b981]'},
-            {'name': 'Node-C', 'cpu': 82, 'color': '[#f59e0b]'},
-        ],
-        'logs': [
-            {'timestamp': '2023-10-27 14:32:01.442', 'level': 'INFO',    'message': 'Node-C initiated Bully Election.'},
-            {'timestamp': '2023-10-27 14:32:01.450', 'level': 'SUCCESS', 'message': 'Node-D broadcasts Victory.'},
+
+    prom_ok = _prom_query("up") is not None
+
+    # ── KPIs principales ────────────────────────────────────────────────────
+    # Total de transacciones por segundo (rate de 1 minuto sobre todos los nodos)
+    tps_raw = _prom_query('sum(rate(bank_transactions_total[1m]))')
+    throughput_tps = round((tps_raw or 0) * 60, 1)  # convertimos a TPM para mostrar
+
+    # Latencia p99 del 2PC (fase prepare, que es la más lenta)
+    latency_p99 = _prom_query(
+        'histogram_quantile(0.99, sum by(le) (rate(bank_2pc_duration_seconds_bucket{phase="prepare"}[5m])))'
+    )
+    latency_ms = round((latency_p99 or 0) * 1000, 1)
+
+    # Latencia p50 para calcular si subió o bajó
+    latency_p50 = _prom_query(
+        'histogram_quantile(0.50, sum by(le) (rate(bank_2pc_duration_seconds_bucket{phase="prepare"}[5m])))'
+    )
+    latency_p50_ms = round((latency_p50 or 0) * 1000, 1)
+    latency_trend = "up" if latency_ms > latency_p50_ms else "down"
+    latency_change = f"{'+' if latency_ms >= latency_p50_ms else ''}{round(latency_ms - latency_p50_ms, 1)}"
+
+    # Estado de salud del cluster (nodos con state >= 0 = no pausados)
+    node_states = _prom_query_all("bank_node_state")
+    active_nodes = sum(1 for r in node_states if float(r["value"][1]) >= 0)
+    total_nodes = len(node_states) if node_states else 3
+    cluster_health = "Healthy" if active_nodes == total_nodes else (
+        "Degraded" if active_nodes > 0 else "Critical"
+    )
+
+    # ── Transacciones por minuto (últimos 10 intervalos de 1 min) ──────────
+    tpm_raw = _prom_query_all(
+        'sum by(node) (increase(bank_transactions_total[1m]))'
+    )
+    # Sacamos el total de cada nodo y normalizamos a alturas 0-100
+    tpm_values = [round(float(r["value"][1])) for r in tpm_raw] if tpm_raw else [0, 0, 0]
+    max_tpm = max(tpm_values) if tpm_values and max(tpm_values) > 0 else 1
+    # Generamos 10 barras: los últimos valores reales + relleno si faltan
+    tpm_heights = [round((v / max_tpm) * 100) for v in tpm_values]
+    while len(tpm_heights) < 10:
+        tpm_heights.insert(0, 0)
+    tpm_heights = tpm_heights[-10:]  # últimas 10
+
+    # ── Estado por nodo ────────────────────────────────────────────────────
+    node_state_map = {1: "LEADER", 0: "FOLLOWER", -1: "PAUSED"}
+    node_colors = {"peru": "[#3b82f6]", "chile": "[#10b981]", "colombia": "[#f59e0b]"}
+    nodes_metrics = []
+    for r in node_states:
+        node_name = r["metric"].get("node", r["metric"].get("exported_job", "?"))
+        state_val = float(r["value"][1])
+        # Usamos el contador de transacciones como proxy de "carga" del nodo (0-100)
+        tx_rate = _prom_query(f'rate(bank_transactions_total{{node="{node_name}"}}[1m])') or 0
+        cpu_proxy = min(100, round(tx_rate * 1000))  # escala visual
+        nodes_metrics.append({
+            "name": f"Node {node_name.capitalize()} ({node_state_map.get(int(state_val), '?')})",
+            "cpu": cpu_proxy,
+            "color": node_colors.get(node_name, "[#71717a]")
+        })
+
+    # Si Prometheus no responde, fallback a datos básicos reales del cluster
+    if not prom_ok:
+        healthy_banks, avg_latency = check_bank_health()
+        nodes_metrics = [
+            {"name": "Node Peru",     "cpu": 0, "color": "[#3b82f6]"},
+            {"name": "Node Chile",    "cpu": 0, "color": "[#10b981]"},
+            {"name": "Node Colombia", "cpu": 0, "color": "[#f59e0b]"},
         ]
+        latency_ms = avg_latency
+        cluster_health = "Healthy" if healthy_banks == 3 else "Degraded"
+        throughput_tps = 0
+        tpm_heights = [0] * 10
+
+    # ── Logs del cluster desde los eventos gRPC ────────────────────────────
+    logs = []
+    for bank in BANKS:
+        try:
+            stub = get_stub(bank)
+            resp = stub.GetEvents(bank_pb2.EventsRequest(), timeout=2)
+            for evt in resp.events[-5:]:  # últimos 5 por nodo
+                level = {"election": "INFO", "failure": "WARN", "sync": "SUCCESS"}.get(evt.type, "INFO")
+                logs.append({
+                    "timestamp": evt.timestamp[:19].replace("T", " ") if evt.timestamp else "—",
+                    "level": level,
+                    "message": f"[{bank.upper()}] {evt.title}: {evt.description}"
+                })
+        except Exception:
+            pass
+    logs.sort(key=lambda x: x["timestamp"], reverse=True)
+    logs = logs[:20]
+
+    metrics = {
+        "cluster_health":    cluster_health,
+        "time_range":        "1m",
+        "cpu_load":          cpu_proxy if nodes_metrics else 0,
+        "memory_used":       0,
+        "memory_percent":    0,
+        "latency_ms":        latency_ms,
+        "latency_trend":     latency_trend,
+        "latency_change":    latency_change,
+        "throughput_tps":    throughput_tps,
+        "throughput_status": cluster_health,
+        "tpm_heights":       tpm_heights,
+        "nodes":             nodes_metrics,
+        "logs":              logs,
+        "prometheus_ok":     prom_ok,
     }
+
     user = get_user()
     return render_template('monitoring.html', user=user, active_page='monitoring', metrics=metrics)
 
