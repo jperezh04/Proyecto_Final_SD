@@ -7,6 +7,7 @@ from bank_client import get_all_accounts_for_user, BANKS, get_stub
 import bank_pb2
 from flask import Flask, render_template, session, redirect, url_for, request
 from two_phase_commit import execute_interbank_transfer
+from bully import get_cluster_state
 
 from dotenv import load_dotenv
 from datetime import datetime 
@@ -19,6 +20,37 @@ transactions_today_count = 0
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'clave-por-defecto')
+
+# In-memory overrides for demo purposes (no persistence)
+cluster_overrides = {
+    'forced_leader': None,  # store node name
+    'disconnected': set()
+}
+OVERRIDES_PATH = os.path.join(os.path.dirname(__file__), 'data', 'overrides.json')
+
+def _load_overrides():
+    try:
+        if os.path.exists(OVERRIDES_PATH):
+            with open(OVERRIDES_PATH, 'r') as f:
+                data = json.load(f)
+                cluster_overrides['forced_leader'] = data.get('forced_leader')
+                cluster_overrides['disconnected'] = set(data.get('disconnected', []))
+    except Exception:
+        pass
+
+def _save_overrides():
+    try:
+        os.makedirs(os.path.dirname(OVERRIDES_PATH), exist_ok=True)
+        with open(OVERRIDES_PATH, 'w') as f:
+            json.dump({
+                'forced_leader': cluster_overrides['forced_leader'],
+                'disconnected': list(cluster_overrides['disconnected'])
+            }, f, indent=2)
+    except Exception:
+        pass
+
+# load persisted overrides at startup
+_load_overrides()
 
 # Datos dummy (luego vendrán de gRPC)
 def get_dummy_summary():
@@ -378,28 +410,17 @@ def coordination():
     if 'user' not in session:
         return redirect(url_for('login'))
 
-    # Datos dummy de coordinación (coherentes con Bully Algorithm)
+    # Obtener estado real del clúster desde los bancos
+    nodes, events = get_cluster_state()
+
+    # Determinar quién es el coordinador actual
+    leader_node = next((n for n in nodes if n['state'] == 'LEADER'), nodes[0])
     coordinator = {
-        'name': 'Node #1 (Perú)',
-        'short_name': 'N1',
-        'details': 'ID: 10.24.1.101 • Region: South America',
-        'state': 'STABLE'
+        'name': leader_node['name'],
+        'short_name': leader_node['short_name'],
+        'details': f"ID: {leader_node['priority']} • Region: South America",
+        'state': 'STABLE' if leader_node['state'] == 'LEADER' else 'ELECTION'
     }
-
-    nodes = [
-        {'name': 'Node #1 (Perú)', 'short_name': 'N1', 'state': 'LEADER', 'priority': 100, 'uptime': '45d 12h', 'topology_x': '50%', 'topology_y': '50%'},
-        {'name': 'Node #2 (Chile)', 'short_name': 'N2', 'state': 'FOLLOWER', 'priority': 80, 'uptime': '45d 11h', 'topology_x': '20%', 'topology_y': '20%'},
-        {'name': 'Node #3 (Colombia)', 'short_name': 'N3', 'state': 'DISCONNECTED', 'priority': 90, 'uptime': '-', 'topology_x': '75%', 'topology_y': '75%'},
-        {'name': 'Node #4', 'short_name': 'N4', 'state': 'FOLLOWER', 'priority': 75, 'uptime': '12d 04h', 'topology_x': '80%', 'topology_y': '30%'},
-        {'name': 'Node #5', 'short_name': 'N5', 'state': 'FOLLOWER', 'priority': 60, 'uptime': '05d 18h', 'topology_x': '25%', 'topology_y': '80%'}
-    ]
-
-    events = [
-        {'type': 'election', 'time': 'Just now', 'title': 'New Leader Elected: Node #1', 'description': 'Algorithm stabilized. Broadcast sent.'},
-        {'type': 'election', 'time': '2 mins ago', 'title': 'Election Started', 'description': 'Initiated by Node #2 due to timeout.'},
-        {'type': 'failure', 'time': '2 mins ago', 'title': 'Node #3 Disconnected', 'description': 'Heartbeat failed after 3 retries.'},
-        {'type': 'sync', 'time': '1 hr ago', 'title': 'Routine Sync Completed', 'description': 'All 5 nodes acknowledged.'}
-    ]
 
     user = get_user()
     return render_template('coordination.html',
@@ -408,6 +429,88 @@ def coordination():
                            coordinator=coordinator,
                            nodes=nodes,
                            events=events)
+
+
+@app.route('/api/cluster-state')
+def api_cluster_state():
+    nodes, events = get_cluster_state()
+    # apply overrides
+    if cluster_overrides['forced_leader']:
+        forced = cluster_overrides['forced_leader']
+        for n in nodes:
+            if n['name'] == forced:
+                n['state'] = 'LEADER'
+            elif n['state'] != 'DISCONNECTED':
+                n['state'] = 'FOLLOWER'
+        events.insert(0, {'type':'info','time':'Now','title':'Forced leader','description':f'{forced} set as leader (override)'} )
+    for d in cluster_overrides['disconnected']:
+        for n in nodes:
+            if n['name'] == d:
+                n['state'] = 'DISCONNECTED'
+    return {'nodes': nodes, 'events': events}
+
+
+@app.route('/api/force-election', methods=['POST'])
+def api_force_election():
+    data = request.get_json(silent=True) or {}
+    node = data.get('node')
+    if node:
+        # set forced leader
+        cluster_overrides['forced_leader'] = node
+        _save_overrides()
+        # Try to notify peers via gRPC Coordinator where possible (best-effort)
+        # Map node string to numeric id and bank key
+        id_map = {'Peru': 'peru', 'Chile': 'chile', 'Colombia': 'colombia'}
+        node_bank = None
+        for k, v in id_map.items():
+            if k in node:
+                node_bank = v
+        bank_ids = {'peru': 3, 'chile': 2, 'colombia': 1}
+        leader_id = bank_ids.get(node_bank)
+        if leader_id:
+            try:
+                # broadcast Coordinator to all reachable banks so they accept this leader
+                from bank_client import BANKS, get_stub
+                for bank_key in BANKS.keys():
+                    try:
+                        stub = get_stub(bank_key)
+                        stub.Coordinator(bank_pb2.CoordinatorRequest(leader_id=str(leader_id)), timeout=1)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+        return {'status': 'ok', 'message': f'Forced election: {node}'}, 200
+    # clear forced leader to let normal election happen
+    cluster_overrides['forced_leader'] = None
+    return {'status': 'ok', 'message': 'Election requested'}, 200
+
+
+@app.route('/api/node/<path:node_id>/toggle', methods=['POST'])
+def api_node_toggle(node_id):
+    # node_id expected to match node['name'] used in templates
+    # Toggle presence in disconnected set
+    if node_id in cluster_overrides['disconnected']:
+        cluster_overrides['disconnected'].remove(node_id)
+        _save_overrides()
+        return {'status':'ok','message':'node reconnected'}
+    else:
+        cluster_overrides['disconnected'].add(node_id)
+        _save_overrides()
+        return {'status':'ok','message':'node disconnected'}
+
+
+@app.route('/api/export-logs')
+def api_export_logs():
+    # Generate a small log file from recent events for download
+    nodes, events = get_cluster_state()
+    lines = []
+    lines.append('=== Coordination Logs ===')
+    lines.append(time.strftime('%Y-%m-%d %H:%M:%S'))
+    for e in events:
+        lines.append(f"[{e.get('type','info').upper()}] {e.get('time','Now')} - {e.get('title','')} - {e.get('description','')}")
+    content = '\n'.join(lines)
+    from flask import Response
+    return Response(content, mimetype='text/plain', headers={"Content-Disposition": "attachment;filename=coordination-logs.txt"})
 
 @app.route('/error', endpoint='error')
 def error_page():
