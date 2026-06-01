@@ -1,19 +1,21 @@
 <!DOCTYPE html>
-<html class="light" lang="es">
+<html class="dark" lang="es">
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta name="description" content="Distributed banking dashboard for institutional nodes — monitoring, transfers, and coordination." />
+    <meta name="theme-color" content="#131b2e" />
     <title>{% block title %}Sistema Bancario Distribuido{% endblock %}</title>
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet"/>
-
+    <!-- Fuente Geist -->
+    <link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/font.css" rel="stylesheet"/>
     <!-- Material Symbols -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 
-    <!-- Tailwind CSS con configuración del Design System -->
+    <!-- CSS profesional externo -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+
+    <!-- Tailwind CSS desde CDN -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
         tailwind.config = {
@@ -21,130 +23,83 @@
             theme: {
                 extend: {
                     "colors": {
-                        "surface-container": "#f0edef",
-                        "on-error": "#ffffff",
-                        "surface-tint": "#565e74",
-                        "on-secondary-fixed-variant": "#003ea8",
-                        "on-tertiary-container": "#75859d",
-                        "surface-bright": "#fcf8fa",
-                        "on-primary": "#ffffff",
-                        "on-primary-container": "#7c839b",
-                        "surface-container-lowest": "#ffffff",
-                        "on-tertiary-fixed-variant": "#38485d",
-                        "secondary-fixed": "#dbe1ff",
-                        "on-secondary-fixed": "#00174b",
-                        "inverse-primary": "#bec6e0",
-                        "inverse-on-surface": "#f3f0f2",
-                        "tertiary": "#000000",
-                        "on-surface": "#1b1b1d",
-                        "on-background": "#1b1b1d",
-                        "outline": "#76777d",
-                        "on-tertiary": "#ffffff",
-                        "outline-variant": "#c6c6cd",
-                        "secondary": "#0051d5",
-                        "surface-container-low": "#f6f3f5",
-                        "primary": "#000000",
-                        "surface-container-highest": "#e4e2e4",
-                        "on-surface-variant": "#45464d",
-                        "error": "#ba1a1a",
-                        "secondary-container": "#316bf3",
-                        "on-tertiary-fixed": "#0b1c30",
-                        "surface-container-high": "#eae7e9",
-                        "on-primary-fixed": "#131b2e",
-                        "background": "#fcf8fa",
-                        "on-secondary": "#ffffff",
-                        "primary-container": "#131b2e",
-                        "error-container": "#ffdad6",
-                        "secondary-fixed-dim": "#b4c5ff",
-                        "tertiary-fixed": "#d3e4fe",
-                        "surface-variant": "#e4e2e4",
-                        "inverse-surface": "#303032",
-                        "primary-fixed": "#dae2fd",
-                        "primary-fixed-dim": "#bec6e0",
-                        "on-primary-fixed-variant": "#3f465c",
-                        "on-error-container": "#93000a",
-                        "surface-dim": "#dcd9db",
-                        "tertiary-fixed-dim": "#b7c8e1",
-                        "on-secondary-container": "#fefcff",
-                        "surface": "#fcf8fa",
-                        "tertiary-container": "#0b1c30"
+                        "tertiary-container": "var(--color-tertiary-container)",
+                        "outline": "var(--color-outline)",
+                        "on-primary-container": "var(--color-on-primary-container)",
+                        "on-secondary": "var(--color-on-secondary)",
+                        "on-tertiary-fixed": "var(--color-on-tertiary-fixed)",
+                        "on-primary-fixed": "var(--color-on-primary-fixed)",
+                        "surface-bright": "var(--color-surface-bright)",
+                        "surface": "var(--color-surface)",
+                        "secondary-fixed-dim": "var(--color-secondary-fixed-dim)",
+                        "surface-dim": "var(--color-surface-dim)",
+                        "surface-container-low": "var(--color-surface-container-low)",
+                        "background": "var(--color-background)",
+                        "tertiary-fixed": "var(--color-tertiary-fixed)",
+                        "on-error": "var(--color-on-error)",
+                        "on-surface": "var(--color-on-surface)",
+                        "tertiary-fixed-dim": "var(--color-tertiary-fixed-dim)",
+                        "surface-container": "var(--color-surface-container)",
+                        "secondary-fixed": "var(--color-secondary-fixed)",
+                        "error-container": "var(--color-error-container)",
+                        "primary-fixed-dim": "var(--color-primary-fixed-dim)",
+                        "inverse-surface": "var(--color-inverse-surface)",
+                        "surface-container-high": "var(--color-surface-container-high)",
+                        "on-error-container": "var(--color-on-error-container)",
+                        "inverse-on-surface": "var(--color-inverse-on-surface)",
+                        "primary-fixed": "var(--color-primary-fixed)",
+                        "on-tertiary": "var(--color-on-tertiary)",
+                        "surface-variant": "var(--color-surface-variant)",
+                        "on-secondary-fixed": "var(--color-on-secondary-fixed)",
+                        "on-primary-fixed-variant": "var(--color-on-primary-fixed-variant)",
+                        "on-primary": "var(--color-on-primary)",
+                        "secondary-container": "var(--color-secondary-container)",
+                        "on-tertiary-container": "var(--color-on-tertiary-container)",
+                        "on-secondary-fixed-variant": "var(--color-on-secondary-fixed-variant)",
+                        "inverse-primary": "var(--color-inverse-primary)",
+                        "on-secondary-container": "var(--color-on-secondary-container)",
+                        "secondary": "var(--color-secondary)",
+                        "surface-container-lowest": "var(--color-surface-container-lowest)",
+                        "primary-container": "var(--color-primary-container)",
+                        "error": "var(--color-error)",
+                        "on-tertiary-fixed-variant": "var(--color-on-tertiary-fixed-variant)",
+                        "tertiary": "var(--color-tertiary)",
+                        "surface-container-highest": "var(--color-surface-container-highest)",
+                        "on-surface-variant": "var(--color-on-surface-variant)",
+                        "primary": "var(--color-primary)",
+                        "outline-variant": "var(--color-outline-variant)",
+                        "on-background": "var(--color-on-background)",
+                        "surface-tint": "var(--color-surface-tint)"
                     },
                     "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "sm": "8px",
-                        "base": "4px",
-                        "lg": "24px",
-                        "md": "16px",
-                        "xl": "32px",
-                        "grid-columns": "12",
-                        "2xl": "48px",
-                        "3xl": "64px",
-                        "grid-margin": "32px",
-                        "xs": "4px",
-                        "grid-gutter": "24px"
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
                     },
                     "fontFamily": {
-                        "body-md": ["Inter"],
-                        "headline-sm": ["Inter"],
-                        "display-lg": ["Inter"],
-                        "mono-sm": ["JetBrains Mono"],
-                        "headline-lg-mobile": ["Inter"],
-                        "body-lg": ["Inter"],
-                        "label-md": ["Inter"],
-                        "headline-lg": ["Inter"],
-                        "body-sm": ["Inter"],
-                        "headline-md": ["Inter"]
-                    },
-                    "fontSize": {
-                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
-                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
-                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
-                        "mono-sm": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
-                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
-                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
-                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "600"}],
-                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
-                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
-                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                        "headline": ["Geist", "sans-serif"],
+                        "display": ["Geist", "sans-serif"],
+                        "body": ["Geist", "sans-serif"],
+                        "label": ["Geist", "sans-serif"]
                     }
                 }
             }
         }
     </script>
-    <style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-    </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen flex">
+<body class="bg-background text-on-background font-body min-h-screen flex">
+
+    <a class="sr-only focus:not-sr-only absolute top-2 left-2 bg-primary text-on-primary px-3 py-2 rounded z-50" href="#main-content">Skip to main content</a>
 
     <!-- ========== SIDEBAR ========== -->
-    <nav class="bg-primary-container fixed left-0 top-0 h-full w-[280px] border-r border-outline-variant flex flex-col py-lg z-50">
-        <!-- Perfil / Marca -->
-        <div class="px-lg pb-lg flex items-center gap-md border-b border-on-primary-fixed-variant/20 mb-md">
-            <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden">
-                <img alt="User profile photo" class="w-full h-full object-cover"
-                     src="{{ user.avatar_url | default('https://ui-avatars.com/api/?name=User&background=316bf3&color=fff') }}"/>
-            </div>
-            <div>
-                <h1 class="font-headline-sm text-headline-sm font-bold text-on-primary-fixed">
-                    {{ user.bank_name | default('Global Finance') }}
-                </h1>
-                <p class="font-label-md text-label-md text-on-primary-container">
-                    {{ user.role | default('Institutional Node') }}
-                </p>
-            </div>
+    <nav class="hidden md:flex bg-surface-container-low fixed left-0 top-0 h-full w-[280px] border-r border-outline-variant flex flex-col py-6 z-50">
+        <div class="px-6 mb-8">
+            <h1 class="font-headline text-xl font-bold text-primary mb-2">Global Finance</h1>
+            <p class="font-label text-sm text-on-surface-variant">Institutional Node #12</p>
         </div>
-
-        <!-- Navegación -->
-        <ul class="flex flex-col w-full">
+        <ul class="flex-grow flex flex-col gap-1 mt-6 px-4">
             {% set navigation = [
                 ('dashboard', 'Dashboard', 'dashboard'),
                 ('accounts', 'Accounts', 'account_balance'),
@@ -156,68 +111,89 @@
                 ('error', 'Error & Recovery', 'warning')
             ] %}
             {% for route, label, icon in navigation %}
-            <li class="w-full">
+            <li>
                 <a href="{{ url_for(route) }}"
-                   class="flex items-center gap-md px-lg py-sm cursor-pointer transition-all duration-200 hover:bg-on-primary-fixed-variant/5
+                   class="px-4 py-3 rounded-lg cursor-pointer transition-all duration-200 flex items-center gap-4
                           {% if active_page == route %}
-                              text-on-primary-fixed border-l-4 border-secondary bg-on-primary-fixed-variant/10
+                              text-on-surface bg-surface-container-high border-l-4 border-primary
                           {% else %}
-                              text-on-primary-container hover:text-on-primary-fixed border-l-4 border-transparent
+                              text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high
                           {% endif %}">
-                    <span class="material-symbols-outlined">{{ icon }}</span>
-                    <span class="font-body-md text-body-md font-medium">{{ label }}</span>
+                    <span class="material-symbols-outlined {{ 'text-primary' if active_page == route else 'text-secondary' }}">{{ icon }}</span>
+                    <span class="font-label text-sm">{{ label }}</span>
                 </a>
             </li>
             {% endfor %}
-
-            <!-- Separador y logout -->
-            <li class="w-full mt-auto pt-md border-t border-on-primary-fixed-variant/20">
-                <a href="{{ url_for('logout') }}"
-                   class="flex items-center gap-md px-lg py-sm cursor-pointer transition-all duration-200 hover:bg-on-primary-fixed-variant/5 text-on-primary-container hover:text-on-primary-fixed border-l-4 border-transparent">
-                    <span class="material-symbols-outlined">logout</span>
-                    <span class="font-body-md text-body-md font-medium">Logout</span>
-                </a>
-            </li>
         </ul>
+        <div class="px-6 mt-4 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden">
+                <span class="material-symbols-outlined text-on-surface-variant">person</span>
+            </div>
+        </div>
     </nav>
 
     <!-- ========== CONTENIDO PRINCIPAL ========== -->
-    <main class="ml-[280px] w-[calc(100%-280px)] min-h-screen flex flex-col bg-background">
-
+    <div class="flex-1 flex flex-col min-w-0 md:ml-[280px]">
         <!-- Topbar -->
-        <header class="bg-surface border-b border-outline-variant shadow-sm flex justify-between items-center w-full h-16 px-lg sticky top-0 z-40">
-            <div class="flex items-center gap-md">
-                <div class="flex items-center bg-surface-container-low border border-outline-variant rounded-lg px-sm py-xs">
-                    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">search</span>
-                    <input class="bg-transparent border-none focus:ring-0 text-body-sm font-body-sm text-on-surface w-64 placeholder:text-on-surface-variant"
-                           placeholder="Search operations..." type="text"/>
-                </div>
+        <header class="bg-surface border-b border-outline-variant shadow-sm flex justify-between items-center w-full h-16 px-6 z-40 sticky top-0">
+            <div class="flex items-center gap-4">
+                <div class="font-headline text-xl font-semibold text-primary">Financial Coordinator</div>
             </div>
-            <div class="font-headline-md text-headline-md font-semibold text-primary absolute left-1/2 -translate-x-1/2">
-                {{ self.title() }}
-            </div>
-            <div class="flex items-center gap-md text-primary">
-                <button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface-variant hover:text-primary">
-                    <span class="material-symbols-outlined">notifications</span>
+            <div class="flex items-center gap-4 text-primary">
+                <span class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80">notifications</span>
+                <span class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80">hub</span>
+                
+                <!-- Toggle de tema -->
+                <button id="themeToggle" class="w-10 h-6 rounded-full bg-surface-container-high border border-outline-variant relative transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary" onclick="toggleTheme()" title="Cambiar tema">
+                    <span id="themeToggleDot" class="absolute left-1 top-1 w-4 h-4 rounded-full bg-primary transition-transform duration-300"></span>
                 </button>
-                <button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface-variant hover:text-primary">
-                    <span class="material-symbols-outlined">hub</span>
-                </button>
-                <a href="{{ url_for('logout') }}"
-                   class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface-variant hover:text-primary"
-                   title="Cerrar sesión">
-                    <span class="material-symbols-outlined">account_circle</span>
-                </a>
+                
+                <a href="{{ url_for('logout') }}" class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80 text-primary">account_circle</a>
             </div>
         </header>
 
-        <!-- Contenido específico de cada página -->
-        <div class="p-grid-margin w-full max-w-[1440px] mx-auto flex-1 flex flex-col gap-grid-gutter">
+        <main id="main-content" class="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto bg-background" tabindex="-1">
             {% block content %}{% endblock %}
-        </div>
+        </main>
+    </div>
 
-    </main>
+    <!-- ========== SCRIPTS ========== -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const html = document.documentElement;
+            if (savedTheme === 'light') {
+                html.classList.remove('dark');
+            } else {
+                html.classList.add('dark');
+            }
+            updateToggleDot();
+        })();
 
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            updateToggleDot();
+        }
+
+        function updateToggleDot() {
+            const dot = document.getElementById('themeToggleDot');
+            if (!dot) return;
+            if (document.documentElement.classList.contains('dark')) {
+                dot.style.transform = 'translateX(24px)';
+            } else {
+                dot.style.transform = 'translateX(0)';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', updateToggleDot);
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,192 +1,191 @@
 <!DOCTYPE html>
-<html lang="es">
+<html class="dark" lang="es">
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Login - Sistema Bancario Distribuido</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/font.css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+    <!-- CSS profesional externo -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
     <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
                     "colors": {
-                        "surface-container": "#f0edef",
-                        "on-error": "#ffffff",
-                        "surface-tint": "#565e74",
-                        "on-secondary-fixed-variant": "#003ea8",
-                        "on-tertiary-container": "#75859d",
-                        "surface-bright": "#fcf8fa",
-                        "on-primary": "#ffffff",
-                        "on-primary-container": "#7c839b",
-                        "surface-container-lowest": "#ffffff",
-                        "on-tertiary-fixed-variant": "#38485d",
-                        "secondary-fixed": "#dbe1ff",
-                        "on-secondary-fixed": "#00174b",
-                        "inverse-primary": "#bec6e0",
-                        "inverse-on-surface": "#f3f0f2",
-                        "tertiary": "#000000",
-                        "on-surface": "#1b1b1d",
-                        "on-background": "#1b1b1d",
-                        "outline": "#76777d",
-                        "on-tertiary": "#ffffff",
-                        "outline-variant": "#c6c6cd",
-                        "secondary": "#0051d5",
-                        "surface-container-low": "#f6f3f5",
-                        "primary": "#000000",
-                        "surface-container-highest": "#e4e2e4",
-                        "on-surface-variant": "#45464d",
-                        "error": "#ba1a1a",
-                        "secondary-container": "#316bf3",
-                        "on-tertiary-fixed": "#0b1c30",
-                        "surface-container-high": "#eae7e9",
-                        "on-primary-fixed": "#131b2e",
-                        "background": "#fcf8fa",
-                        "on-secondary": "#ffffff",
-                        "primary-container": "#131b2e",
-                        "error-container": "#ffdad6",
-                        "secondary-fixed-dim": "#b4c5ff",
-                        "tertiary-fixed": "#d3e4fe",
-                        "surface-variant": "#e4e2e4",
-                        "inverse-surface": "#303032",
-                        "primary-fixed": "#dae2fd",
-                        "primary-fixed-dim": "#bec6e0",
-                        "on-primary-fixed-variant": "#3f465c",
-                        "on-error-container": "#93000a",
-                        "surface-dim": "#dcd9db",
-                        "tertiary-fixed-dim": "#b7c8e1",
-                        "on-secondary-container": "#fefcff",
-                        "surface": "#fcf8fa",
-                        "tertiary-container": "#0b1c30"
+                        "tertiary-container": "var(--color-tertiary-container)",
+                        "outline": "var(--color-outline)",
+                        "on-primary-container": "var(--color-on-primary-container)",
+                        "on-secondary": "var(--color-on-secondary)",
+                        "on-tertiary-fixed": "var(--color-on-tertiary-fixed)",
+                        "on-primary-fixed": "var(--color-on-primary-fixed)",
+                        "surface-bright": "var(--color-surface-bright)",
+                        "surface": "var(--color-surface)",
+                        "secondary-fixed-dim": "var(--color-secondary-fixed-dim)",
+                        "surface-dim": "var(--color-surface-dim)",
+                        "surface-container-low": "var(--color-surface-container-low)",
+                        "background": "var(--color-background)",
+                        "tertiary-fixed": "var(--color-tertiary-fixed)",
+                        "on-error": "var(--color-on-error)",
+                        "on-surface": "var(--color-on-surface)",
+                        "tertiary-fixed-dim": "var(--color-tertiary-fixed-dim)",
+                        "surface-container": "var(--color-surface-container)",
+                        "secondary-fixed": "var(--color-secondary-fixed)",
+                        "error-container": "var(--color-error-container)",
+                        "primary-fixed-dim": "var(--color-primary-fixed-dim)",
+                        "inverse-surface": "var(--color-inverse-surface)",
+                        "surface-container-high": "var(--color-surface-container-high)",
+                        "on-error-container": "var(--color-on-error-container)",
+                        "inverse-on-surface": "var(--color-inverse-on-surface)",
+                        "primary-fixed": "var(--color-primary-fixed)",
+                        "on-tertiary": "var(--color-on-tertiary)",
+                        "surface-variant": "var(--color-surface-variant)",
+                        "on-secondary-fixed": "var(--color-on-secondary-fixed)",
+                        "on-primary-fixed-variant": "var(--color-on-primary-fixed-variant)",
+                        "on-primary": "var(--color-on-primary)",
+                        "secondary-container": "var(--color-secondary-container)",
+                        "on-tertiary-container": "var(--color-on-tertiary-container)",
+                        "on-secondary-fixed-variant": "var(--color-on-secondary-fixed-variant)",
+                        "inverse-primary": "var(--color-inverse-primary)",
+                        "on-secondary-container": "var(--color-on-secondary-container)",
+                        "secondary": "var(--color-secondary)",
+                        "surface-container-lowest": "var(--color-surface-container-lowest)",
+                        "primary-container": "var(--color-primary-container)",
+                        "error": "var(--color-error)",
+                        "on-tertiary-fixed-variant": "var(--color-on-tertiary-fixed-variant)",
+                        "tertiary": "var(--color-tertiary)",
+                        "surface-container-highest": "var(--color-surface-container-highest)",
+                        "on-surface-variant": "var(--color-on-surface-variant)",
+                        "primary": "var(--color-primary)",
+                        "outline-variant": "var(--color-outline-variant)",
+                        "on-background": "var(--color-on-background)",
+                        "surface-tint": "var(--color-surface-tint)"
                     },
                     "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "sm": "8px",
-                        "base": "4px",
-                        "lg": "24px",
-                        "md": "16px",
-                        "xl": "32px",
-                        "grid-columns": "12",
-                        "2xl": "48px",
-                        "3xl": "64px",
-                        "grid-margin": "32px",
-                        "xs": "4px",
-                        "grid-gutter": "24px"
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
                     },
                     "fontFamily": {
-                        "body-md": ["Inter"],
-                        "headline-sm": ["Inter"],
-                        "display-lg": ["Inter"],
-                        "mono-sm": ["JetBrains Mono"],
-                        "headline-lg-mobile": ["Inter"],
-                        "body-lg": ["Inter"],
-                        "label-md": ["Inter"],
-                        "headline-lg": ["Inter"],
-                        "body-sm": ["Inter"],
-                        "headline-md": ["Inter"]
-                    },
-                    "fontSize": {
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
-                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
-                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
-                        "mono-sm": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
-                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
-                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "600" }],
-                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
-                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }]
+                        "headline": ["Geist", "sans-serif"],
+                        "display": ["Geist", "sans-serif"],
+                        "body": ["Geist", "sans-serif"],
+                        "label": ["Geist", "sans-serif"]
                     }
                 }
             }
         }
     </script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f6f3f5; /* surface-container-low fallback */
-        }
-    </style>
 </head>
-<body class="bg-surface-container-low min-h-screen flex flex-col justify-center items-center p-md">
-    <!-- Transactional Screen: Navigation Suppressed -->
-    <main class="w-full max-w-md">
-        <!-- Login Card -->
-        <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant p-xl flex flex-col gap-lg">
-            <!-- Brand / Header -->
-            <div class="flex flex-col items-center text-center gap-sm">
-                <div class="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-fixed mb-sm">
-                    <span class="material-symbols-outlined text-headline-lg font-headline-lg" data-weight="fill" style="font-variation-settings: 'FILL' 1;">
-                        account_balance
-                    </span>
-                </div>
-                <h1 class="font-headline-md text-headline-md text-primary tracking-tight">Sistema Bancario Distribuido</h1>
-                <p class="font-body-sm text-body-sm text-on-surface-variant">Secure Institutional Access</p>
+<body class="bg-background min-h-screen flex flex-col justify-center items-center p-4 md:p-8">
+
+<!-- Toggle de tema -->
+<div class="absolute top-4 right-4 flex items-center gap-2">
+    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">light_mode</span>
+    <button id="themeToggle" class="w-12 h-6 rounded-full bg-surface-container-high border border-outline-variant relative transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary" onclick="toggleTheme()">
+        <span id="themeToggleDot" class="absolute left-1 top-1 w-4 h-4 rounded-full bg-primary transition-transform duration-300"></span>
+    </button>
+    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">dark_mode</span>
+</div>
+
+<main class="w-full max-w-md">
+    <div class="bg-surface-container border border-outline-variant rounded-xl shadow-sm p-8 flex flex-col gap-6">
+        <div class="flex flex-col items-center text-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-container mb-2">
+                <span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">account_balance</span>
             </div>
-
-            <!-- Mensaje de error dinámico (Flask) -->
-            {% if error %}
-            <div class="bg-error-container text-on-error-container px-md py-sm rounded-lg font-body-sm flex items-center gap-sm">
-                <span class="material-symbols-outlined text-[18px]">error</span>
-                <span>{{ error }}</span>
-            </div>
-            {% endif %}
-
-            <!-- Formulario de Login -->
-            <form class="flex flex-col gap-md" method="POST" action="{{ url_for('do_login') }}">
-                <!-- Username Field -->
-                <div class="flex flex-col gap-base">
-                    <label class="font-label-md text-label-md text-on-surface" for="username">Username</label>
-                    <div class="relative">
-                        <span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline">
-                            person
-                        </span>
-                        <input class="w-full pl-[36px] pr-md py-[10px] bg-surface-container-lowest border border-outline rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-all" id="username" name="username" placeholder="Enter institutional ID" required="" type="text" value="{{ request.form.username if request.form.username else '' }}"/>
-                    </div>
-                </div>
-
-                <!-- Password Field -->
-                <div class="flex flex-col gap-base">
-                    <div class="flex justify-between items-center">
-                        <label class="font-label-md text-label-md text-on-surface" for="password">Password</label>
-                    </div>
-                    <div class="relative">
-                        <span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline">
-                            lock
-                        </span>
-                        <input class="w-full pl-[36px] pr-md py-[10px] bg-surface-container-lowest border border-outline rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-all" id="password" name="password" placeholder="••••••••" required="" type="password"/>
-                    </div>
-                </div>
-
-                <!-- Remember Me & Forgot Password -->
-                <div class="flex items-center justify-between mt-sm">
-                    <label class="flex items-center gap-sm cursor-pointer">
-                        <input class="w-4 h-4 rounded-DEFAULT border-outline text-secondary focus:ring-secondary bg-surface-container-lowest" type="checkbox" name="remember" value="1" {% if request.form.remember %}checked{% endif %}/>
-                        <span class="font-body-sm text-body-sm text-on-surface-variant">Remember me</span>
-                    </label>
-                    <a class="font-label-md text-label-md text-secondary hover:text-secondary-container transition-colors" href="{{ url_for('recover_access') if 'recover_access' in routes else '#' }}">Recover Access</a>
-                </div>
-
-                <!-- Submit Action -->
-                <button class="mt-md w-full py-[12px] bg-secondary hover:bg-secondary-container text-on-secondary font-label-md text-label-md rounded-lg transition-colors flex justify-center items-center gap-sm" type="submit">
-                    Authenticate
-                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-                </button>
-            </form>
+            <h1 class="font-headline text-2xl font-semibold text-on-surface tracking-tight">Sistema Bancario Distribuido</h1>
+            <p class="font-body text-sm text-on-surface-variant">Secure Institutional Access</p>
         </div>
 
-        <!-- Footer -->
-        <div class="mt-lg text-center font-body-sm text-body-sm text-on-surface-variant">
-            <p>© {{ current_year }} Institutional Node Systems. All rights reserved.</p>
+        {% if error %}
+        <div class="bg-error-container/20 text-on-error-container px-4 py-3 rounded-lg font-body text-sm border border-error/30">
+            {{ error }}
         </div>
-    </main>
+        {% endif %}
+
+        <form class="flex flex-col gap-4" method="POST" action="{{ url_for('do_login') }}">
+            <div class="flex flex-col gap-1">
+                <label class="font-label text-sm text-on-surface" for="username">Username</label>
+                <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">person</span>
+                    <input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline rounded-lg font-body text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                           id="username" name="username" placeholder="Enter institutional ID" required type="text"/>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between items-center">
+                    <label class="font-label text-sm text-on-surface" for="password">Password</label>
+                </div>
+                <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">lock</span>
+                    <input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline rounded-lg font-body text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                           id="password" name="password" placeholder="••••••••" required type="password"/>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input class="w-4 h-4 rounded border-outline text-primary focus:ring-primary bg-surface-container-lowest" type="checkbox" name="remember" value="1"/>
+                    <span class="font-body text-sm text-on-surface-variant">Remember me</span>
+                </label>
+                <a class="font-label text-sm text-primary hover:text-primary/80 transition-colors" href="#">Recover Access</a>
+            </div>
+
+            <button class="mt-4 w-full py-3 bg-primary hover:bg-primary/90 text-on-primary font-label text-sm rounded-lg transition-colors flex justify-center items-center gap-2" type="submit">
+                Authenticate
+                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+            </button>
+        </form>
+    </div>
+
+    <div class="mt-6 text-center font-body text-sm text-on-surface-variant">
+        <p>© {{ current_year | default('2024') }} Institutional Node Systems. All rights reserved.</p>
+    </div>
+</main>
+
+<script>
+    (function() {
+        const savedTheme = localStorage.getItem('theme');
+        const html = document.documentElement;
+        if (savedTheme === 'light') {
+            html.classList.remove('dark');
+        } else {
+            html.classList.add('dark');
+        }
+        updateToggleDot();
+    })();
+
+    function toggleTheme() {
+        const html = document.documentElement;
+        if (html.classList.contains('dark')) {
+            html.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        } else {
+            html.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        }
+        updateToggleDot();
+    }
+
+    function updateToggleDot() {
+        const dot = document.getElementById('themeToggleDot');
+        if (!dot) return;
+        if (document.documentElement.classList.contains('dark')) {
+            dot.style.transform = 'translateX(24px)';
+        } else {
+            dot.style.transform = 'translateX(0)';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', updateToggleDot);
+</script>
 </body>
 </html>

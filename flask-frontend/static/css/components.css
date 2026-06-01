@@ -1,0 +1,65 @@
+/* ===== COMPONENTES PERSONALIZADOS ===== */
+
+/* Scrollbar para tablas */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--color-surface-container);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-outline);
+    border-radius: 4px;
+}
+
+/* Glass effect para tarjetas */
+.glass-card {
+    background: rgba(18, 18, 21, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(82, 82, 91, 0.5);
+}
+
+/* Líneas de red animadas (Connected Banks) */
+.network-line {
+    stroke: var(--color-outline);
+    stroke-width: 2;
+    stroke-dasharray: 4 4;
+    animation: flow 20s linear infinite;
+}
+.network-line.active {
+    stroke: var(--color-primary);
+    stroke-width: 2;
+    stroke-dasharray: 4 4;
+    animation: flow 10s linear infinite;
+}
+@keyframes flow {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
+}
+
+/* Animaciones de recuperación */
+.animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .5; }
+}
+.spin-slow {
+    animation: spin 4s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Grilla de fondo para gráficos */
+.chart-grid {
+    background-image:
+        linear-gradient(to right, var(--color-outline-variant) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--color-outline-variant) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.5;
+}

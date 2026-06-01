@@ -4,65 +4,67 @@
 
 {% block content %}
 <!-- Encabezado -->
-<section class="flex flex-col gap-sm">
-    <h2 class="font-headline-lg text-headline-lg text-primary">Welcome to Main Operations</h2>
-    <p class="font-body-md text-body-md text-on-surface-variant">System overview and real-time coordination metrics for your node.</p>
+<section class="mb-8">
+    <h2 class="font-headline text-2xl md:text-3xl text-on-background mb-2 font-semibold">Welcome to Main Operations</h2>
+    <p class="font-body text-base text-on-surface-variant">System overview and real-time coordination metrics for your node.</p>
 </section>
 
 <!-- Barra de estado del nodo -->
-<section class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex items-center justify-between shadow-sm">
-    <div class="flex items-center gap-xl divide-x divide-outline-variant">
-        <div class="flex flex-col gap-xs pr-xl">
-            <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Current Node</span>
-            <div class="flex items-center gap-xs">
-                <span class="material-symbols-outlined text-secondary text-[18px]">account_balance</span>
-                <span class="font-body-md text-body-md font-semibold text-on-surface">{{ summary.current_node }}</span>
+<section class="w-full bg-surface-container rounded-lg p-4 md:p-6 border border-outline-variant flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-8 divide-y md:divide-y-0 md:divide-x divide-outline-variant w-full md:w-auto">
+        <div class="flex flex-col gap-1 md:pr-8 py-2 md:py-0">
+            <span class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Current Node</span>
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[18px]">account_balance</span>
+                <span class="font-body text-base font-semibold text-on-surface">{{ summary.current_node }}</span>
             </div>
         </div>
-        <div class="flex flex-col gap-xs px-xl">
-            <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Current Role</span>
-            <div class="flex items-center gap-xs">
-                <span class="material-symbols-outlined text-primary text-[18px]">admin_panel_settings</span>
-                <span class="font-body-md text-body-md font-semibold text-on-surface">{{ summary.current_role }}</span>
+        <div class="flex flex-col gap-1 md:px-8 py-2 md:py-0">
+            <span class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Current Role</span>
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-on-surface-variant text-[18px]">admin_panel_settings</span>
+                <span class="font-body text-base font-semibold text-on-surface">{{ summary.current_role }}</span>
             </div>
         </div>
-        <div class="flex flex-col gap-xs pl-xl">
-            <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Distributed Network Health</span>
-            <div class="flex items-center gap-sm">
-                <div class="w-2 h-2 rounded-full {{ 'bg-secondary' if summary.network_health == 100 else 'bg-error' }}"></div>
-                <span class="font-body-md text-body-md font-semibold text-on-surface">{{ summary.network_health }}% Online</span>
-                <span class="font-mono-sm text-mono-sm text-on-surface-variant ml-sm">Latency: {{ summary.latency }}ms</span>
+        <div class="flex flex-col gap-1 md:pl-8 py-2 md:py-0">
+            <span class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Distributed Network Health</span>
+            <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full {{ 'bg-primary' if summary.network_health == 100 else 'bg-error' }}"></div>
+                <span class="font-body text-base font-semibold text-on-surface">{{ summary.network_health }}% Online</span>
+                <span class="font-body text-sm text-on-surface-variant ml-2">Latency: {{ summary.latency }}ms</span>
             </div>
         </div>
     </div>
-    <div class="flex items-center gap-sm">
-        <span class="font-mono-sm text-mono-sm text-on-surface-variant">Last synced: {{ summary.last_sync }}</span>
-        <button class="p-sm hover:bg-surface-container-low rounded-full transition-colors text-on-surface-variant">
+    <div class="flex items-center gap-2">
+        <span id="lastSync" class="font-body text-sm text-on-surface-variant">Last synced: {{ summary.last_sync }}</span>
+        <button id="refreshBtn" class="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant" aria-label="Refresh metrics">
             <span class="material-symbols-outlined text-[18px]">refresh</span>
         </button>
     </div>
 </section>
 
 <!-- Grid de métricas principales -->
-<section class="grid grid-cols-12 gap-grid-gutter">
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
     <!-- Balance Consolidado (Hero) -->
-    <div class="col-span-12 md:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-lg p-lg shadow-sm flex flex-col justify-between relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-64 h-64 bg-secondary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
-        <div class="flex flex-col gap-md z-10">
-            <div class="flex items-center gap-sm text-on-surface-variant">
+    <div class="lg:col-span-8 bg-surface-container rounded-xl p-6 border border-outline-variant shadow-sm relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
+        <div class="flex flex-col gap-4 z-10 relative">
+            <div class="flex items-center gap-2 text-on-surface-variant">
                 <span class="material-symbols-outlined">account_balance_wallet</span>
-                <h3 class="font-label-md text-label-md uppercase tracking-wider">Consolidated Balance</h3>
+                <h3 class="font-label text-xs uppercase tracking-wider">Consolidated Balance</h3>
             </div>
-            <div class="flex items-baseline gap-sm">
-                <span class="font-display-lg text-display-lg text-primary tracking-tight">${{ "{:,.0f}".format(summary.consolidated_balance) }}</span>
-                <span class="font-mono-sm text-mono-sm text-secondary bg-secondary-fixed/30 px-xs py-[2px] rounded border border-secondary/20">{{ summary.balance_change }}</span>
+            <div class="flex items-baseline gap-2">
+                <span class="font-headline text-4xl md:text-5xl font-bold text-on-surface tracking-tight">${{ "{:,.0f}".format(summary.consolidated_balance) }}</span>
+                <span class="font-body text-sm text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">{{ summary.balance_change }}</span>
             </div>
         </div>
-        <div class="mt-xl h-24 w-full flex items-end gap-1 opacity-80 z-10">
-            <div class="w-full bg-surface-container-low rounded-t flex items-end h-full">
+        <div class="mt-8 h-24 w-full flex items-end gap-1 opacity-80 z-10 relative">
+            <div class="w-full bg-surface-container-high rounded-t flex items-end h-full">
+                {% set vals = [30,45,40,60,55,75,70,85,80,95,90,100] %}
                 {% for i in range(12) %}
-                <div class="w-1/12 bg-secondary/{{ '20' if i < 10 else '40' if i == 10 else '60' }} h-[{{ [30,45,40,60,55,75,70,85,80,95,90,100][i] }}%] border-t border-secondary/40 ml-[1px] {% if i == 11 %}border-t-2 border-secondary relative{% endif %}">
-                    {% if i == 11 %}<div class="absolute -top-2 -right-1 w-2 h-2 rounded-full bg-secondary border-2 border-surface-container-lowest"></div>{% endif %}
+                {% set h = vals[i] %}
+                <div class="w-1/12 ml-[1px]" style="height: {{ h }}%; background-color: rgba(19,27,46,{{ 0.2 if i < 10 else 0.4 if i == 10 else 0.6 }}); border-top: 1px solid rgba(19,27,46,0.16); {% if i == 11 %}position:relative; border-top-width:2px;{% endif %}">
+                    {% if i == 11 %}<div style="position:absolute; top:-8px; right:-4px; width:8px; height:8px; border-radius:50%; background-color: rgba(19,27,46,1); border:2px solid var(--color-surface-container);"></div>{% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -70,74 +72,80 @@
     </div>
 
     <!-- Total de Cuentas -->
-    <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-lg p-lg shadow-sm flex flex-col justify-between">
-        <div class="flex flex-col gap-sm">
+    <div class="lg:col-span-4 bg-surface-container rounded-xl p-6 border border-outline-variant shadow-sm flex flex-col justify-between">
+        <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between text-on-surface-variant">
-                <h3 class="font-label-md text-label-md uppercase tracking-wider">Total Accounts</h3>
+                <h3 class="font-label text-xs uppercase tracking-wider">Total Accounts</h3>
                 <span class="material-symbols-outlined">folder_open</span>
             </div>
-            <span class="font-headline-lg text-headline-lg text-primary">{{ "{:,}".format(summary.total_accounts) }}</span>
+            <span class="font-headline text-2xl font-semibold text-on-surface">{{ "{:,}".format(summary.total_accounts) }}</span>
         </div>
-        <div class="mt-auto pt-md border-t border-outline-variant flex items-center justify-between text-on-surface-variant">
-            <span class="font-mono-sm text-mono-sm">Across {{ summary.total_regions }} regions</span>
-            <a href="{{ url_for('accounts') }}" class="font-label-md text-label-md text-secondary hover:underline flex items-center gap-xs">
+        <div class="mt-auto pt-4 border-t border-outline-variant flex items-center justify-between text-on-surface-variant">
+            <span class="font-body text-sm">Across {{ summary.total_regions }} regions</span>
+            <a href="{{ url_for('accounts') }}" class="font-label text-sm text-primary hover:underline flex items-center gap-1">
                 View All <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
             </a>
         </div>
     </div>
 
     <!-- Fila de métricas secundarias -->
-    <div class="col-span-12 grid grid-cols-12 gap-grid-gutter">
+    <div class="col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6">
         <!-- Transacciones hoy -->
-        <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-lg p-md shadow-sm flex flex-col gap-md">
-            <div class="flex items-center gap-sm text-on-surface-variant">
+        <div class="bg-surface-container rounded-xl p-5 border border-outline-variant shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-2 text-on-surface-variant">
                 <span class="material-symbols-outlined text-[20px]">swap_horiz</span>
-                <h3 class="font-label-md text-label-md uppercase tracking-wider">Transactions Today</h3>
+                <h3 class="font-label text-xs uppercase tracking-wider">Transactions Today</h3>
             </div>
             <div class="flex items-baseline justify-between">
-                <span class="font-headline-md text-headline-md text-primary">{{ "{:,}".format(summary.transactions_today) }}</span>
+                <span class="font-headline text-xl font-semibold text-on-surface">{{ "{:,}".format(summary.transactions_today) }}</span>
                 <div class="w-16 h-6 flex items-end justify-end gap-[2px]">
                     <div class="w-1/4 bg-on-surface-variant/30 h-[40%] rounded-t-sm"></div>
                     <div class="w-1/4 bg-on-surface-variant/30 h-[70%] rounded-t-sm"></div>
                     <div class="w-1/4 bg-on-surface-variant/30 h-[50%] rounded-t-sm"></div>
-                    <div class="w-1/4 bg-secondary/80 h-[90%] rounded-t-sm"></div>
+                    <div class="w-1/4 bg-primary/80 h-[90%] rounded-t-sm"></div>
                 </div>
             </div>
         </div>
 
         <!-- Bancos Conectados -->
-        <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-lg p-md shadow-sm flex flex-col gap-md">
-            <div class="flex items-center gap-sm text-on-surface-variant">
+        <div class="bg-surface-container rounded-xl p-5 border border-outline-variant shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-2 text-on-surface-variant">
                 <span class="material-symbols-outlined text-[20px]">lan</span>
-                <h3 class="font-label-md text-label-md uppercase tracking-wider">Connected Banks</h3>
+                <h3 class="font-label text-xs uppercase tracking-wider">Connected Banks</h3>
             </div>
-            <div class="flex flex-col gap-xs">
-                <span class="font-headline-md text-headline-md text-primary">
-                    {{ summary.connected_banks }} <span class="font-body-sm text-body-sm text-on-surface-variant font-normal">/ {{ summary.total_banks }}</span>
+            <div class="flex flex-col gap-1">
+                <span class="font-headline text-xl font-semibold text-on-surface">
+                    {{ summary.connected_banks }} <span class="font-body text-sm text-on-surface-variant font-normal">/ {{ summary.total_banks }}</span>
                 </span>
                 <div class="w-full bg-surface-container-high rounded-full h-1.5 mt-1 overflow-hidden">
-                    <div class="bg-secondary h-full rounded-full" style="width: {{ (summary.connected_banks / summary.total_banks * 100) | int }}%"></div>
+                    <div class="bg-primary h-full rounded-full" style="width: {{ (summary.connected_banks / summary.total_banks * 100) | int }}%"></div>
                 </div>
             </div>
         </div>
 
         <!-- Core Processing Load -->
-        <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-lg p-md shadow-sm flex flex-col gap-md">
+        <div class="bg-surface-container rounded-xl p-5 border border-outline-variant shadow-sm flex flex-col gap-4">
             <div class="flex items-center justify-between text-on-surface-variant">
-                <div class="flex items-center gap-sm">
+                <div class="flex items-center gap-2">
                     <span class="material-symbols-outlined text-[20px]">speed</span>
-                    <h3 class="font-label-md text-label-md uppercase tracking-wider">Core Processing Load</h3>
+                    <h3 class="font-label text-xs uppercase tracking-wider">Core Processing Load</h3>
                 </div>
-                <span class="font-mono-sm text-mono-sm">{{ summary.cpu_load }}%</span>
+                <span class="font-body text-sm">{{ summary.cpu_load }}%</span>
             </div>
             <div class="h-8 w-full mt-auto flex items-center">
-                <div class="w-full flex items-center gap-[2px] opacity-60">
+                    <div class="w-full flex items-center gap-[2px] opacity-60">
+                    {% set heights = [2,4,6,3,5,2,7,4,2] %}
+                    {% set ops = [0.4,0.6,0.8,0.4,0.6,0.4,1.0,0.6,0.4] %}
                     {% for i in range(9) %}
-                    <div class="h-[{{ [2,4,6,3,5,2,7,4,2][i] * 4 }}px] w-full bg-secondary/{{ [40,60,80,40,60,40,100,60,40][i] }} rounded-full"></div>
+                    <div style="height: {{ heights[i] * 4 }}px; flex:1; background-color: rgba(19,27,46,{{ ops[i] }}); border-radius:9999px;"></div>
                     {% endfor %}
                 </div>
             </div>
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
