@@ -11,9 +11,10 @@ import time
 
 # ---------- CONFIGURACIÓN ----------
 NODE_ID = "chile"
+NODE_NUM = 2          # ID numérico para Bully (el más alto)
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ACCOUNTS_DIR = os.path.join(DATA_DIR, "accounts")
-PENDING_DIR = os.path.join(DATA_DIR, "pending")  # Para transacciones 2PC en curso
+PENDING_DIR = os.path.join(DATA_DIR, "pending")
 
 # ---------- PERSISTENCIA ----------
 def load_account(account_id):
@@ -31,7 +32,6 @@ def save_account(account_id, data):
     os.replace(temp_path, path)
 
 def save_pending(tx_id, data):
-    """Guarda una transacción pendiente en disco (para recuperación)."""
     path = os.path.join(PENDING_DIR, f"{tx_id}.json")
     with open(path, "w") as f:
         json.dump(data, f)
@@ -44,18 +44,28 @@ def remove_pending(tx_id):
 # ---------- SERVICIO gRPC ----------
 class BankService(bank_pb2_grpc.BankServiceServicer):
     def __init__(self):
-        self.node_state = {
-            "node_id": NODE_ID,
-            "leader_id": None,
-            "state": "FOLLOWER",
-            "last_heartbeat": time.time()
+        # Estado 2PC
+        self.pending_2pc = {}
+        self.account_locks = {}
+        self.global_lock = threading.Lock()
+
+        # Estado Bully
+        self.node_id = NODE_NUM
+        self.leader_id = 3
+        self.state = "FOLLOWER"
+        self.peers = {
+            3: "localhost:50051",   # Perú
+            1: "localhost:50053"    # Colombia
         }
-        self.pending_2pc = {}          # transacciones en memoria
-        self.account_locks = {}        # bloqueos por cuenta
-        self.global_lock = threading.Lock()  # para crear locks nuevos
+        self.heartbeat_interval = 3
+        self.election_timeout = 6
+        self.last_heartbeat_from_leader = time.time()
+
+        # Iniciar hilos de Bully
+        threading.Thread(target=self._heartbeat_loop, daemon=True).start()
+        threading.Thread(target=self._election_check_loop, daemon=True).start()
 
     def _get_lock(self, account_id):
-        """Devuelve (o crea) el lock para una cuenta."""
         with self.global_lock:
             if account_id not in self.account_locks:
                 self.account_locks[account_id] = threading.Lock()
@@ -106,7 +116,6 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             )
 
     def TransferLocal(self, request, context):
-        # Bloquea ambas cuentas en orden para evitar deadlocks
         ids = sorted([request.source_account, request.dest_account])
         lock1 = self._get_lock(ids[0])
         lock2 = self._get_lock(ids[1])
@@ -131,29 +140,24 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 transaction_id=tx_id
             )
 
-    # ---------- TWO-PHASE COMMIT (REAL) ----------
+    # ---------- TWO-PHASE COMMIT ----------
     def Prepare(self, request, context):
-        """Fase 1: Bloquea la cuenta y verifica si la operación es posible."""
         tx_id = request.transaction_id
         acc_id = request.account_id
         amount = request.amount
-        op_type = request.operation_type  # "debit" o "credit"
+        op_type = request.operation_type
 
         lock = self._get_lock(acc_id)
         if not lock.acquire(blocking=False):
-            # Ya está bloqueada por otra transacción
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
 
         try:
             account = load_account(acc_id)
             if not account:
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
-
-            # Verificar fondos si es un débito
             if op_type == "debit" and account["balance"] < amount:
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
 
-            # Registrar la transacción pendiente
             self.pending_2pc[tx_id] = {
                 "account_id": acc_id,
                 "amount": amount,
@@ -168,13 +172,11 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=True)
-
         except Exception as e:
             lock.release()
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
 
     def Commit(self, request, context):
-        """Fase 2: Ejecuta la operación y libera el bloqueo."""
         tx_id = request.transaction_id
         pending = self.pending_2pc.get(tx_id)
         if not pending:
@@ -185,7 +187,6 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             if not account:
                 return bank_pb2.CommitResponse(success=False)
 
-            # Aplicar la operación
             if pending["op_type"] == "debit":
                 account["balance"] -= pending["amount"]
             elif pending["op_type"] == "credit":
@@ -194,22 +195,17 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(pending["account_id"], account)
 
-            # Liberar recursos
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)
-
             return bank_pb2.CommitResponse(success=True)
-
         except Exception as e:
-            # En caso de error, igual liberamos para no dejar bloqueos
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)
             return bank_pb2.CommitResponse(success=False)
 
     def Abort(self, request, context):
-        """Libera el bloqueo sin modificar la cuenta."""
         tx_id = request.transaction_id
         pending = self.pending_2pc.get(tx_id)
         if not pending:
@@ -220,18 +216,90 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         remove_pending(tx_id)
         return bank_pb2.AbortResponse(success=True)
 
-    # ---------- BULLY (PLACEHOLDER) ----------
+    # ---------- BULLY ----------
+    def _send_heartbeat(self, peer_id, address):
+        try:
+            channel = grpc.insecure_channel(address)
+            stub = bank_pb2_grpc.BankServiceStub(channel)
+            resp = stub.Heartbeat(bank_pb2.HeartbeatRequest(node_id=str(self.node_id)), timeout=1)
+            return resp.alive
+        except:
+            return False
+
+    def _send_election(self, peer_id, address):
+        try:
+            channel = grpc.insecure_channel(address)
+            stub = bank_pb2_grpc.BankServiceStub(channel)
+            resp = stub.Election(bank_pb2.ElectionRequest(candidate_id=str(self.node_id)), timeout=1)
+            return resp.acknowledged
+        except:
+            return False
+
+    def _send_coordinator(self, peer_id, address):
+        try:
+            channel = grpc.insecure_channel(address)
+            stub = bank_pb2_grpc.BankServiceStub(channel)
+            stub.Coordinator(bank_pb2.CoordinatorRequest(leader_id=str(self.node_id)), timeout=1)
+        except:
+            pass
+
+    def _heartbeat_loop(self):
+        while True:
+            time.sleep(self.heartbeat_interval)
+            if self.state != "LEADER" and self.leader_id != self.node_id:
+                leader_addr = self.peers.get(self.leader_id)
+                if leader_addr and not self._send_heartbeat(self.leader_id, leader_addr):
+                    print(f"Líder {self.leader_id} no responde")
+                    self.last_heartbeat_from_leader = 0
+
+    def _election_check_loop(self):
+        while True:
+            time.sleep(1)
+            if self.state != "LEADER" and time.time() - self.last_heartbeat_from_leader > self.election_timeout:
+                print(f"Iniciando elección (nodo {self.node_id})")
+                self.start_election()
+
+    def start_election(self):
+        self.state = "CANDIDATE"
+        higher_nodes = [nid for nid in self.peers if nid > self.node_id]
+        responded = False
+        for nid in higher_nodes:
+            if self._send_election(nid, self.peers[nid]):
+                responded = True
+                break
+        if not responded:
+            self.become_leader()
+
+    def become_leader(self):
+        self.state = "LEADER"
+        self.leader_id = self.node_id
+        print(f"Nodo {self.node_id} se proclama COORDINADOR")
+        for nid, addr in self.peers.items():
+            if nid != self.node_id:
+                self._send_coordinator(nid, addr)
+
     def Heartbeat(self, request, context):
-        return bank_pb2.HeartbeatResponse(alive=True, leader_id=self.node_state.get("leader_id", ""))
+        if self.state == "LEADER":
+            self.last_heartbeat_from_leader = time.time()
+            return bank_pb2.HeartbeatResponse(alive=True, leader_id=str(self.node_id))
+        else:
+            return bank_pb2.HeartbeatResponse(alive=True, leader_id=str(self.leader_id))
 
     def Election(self, request, context):
-        return bank_pb2.ElectionResponse(acknowledged=True)
+        candidate_id = int(request.candidate_id)
+        if candidate_id < self.node_id:
+            threading.Thread(target=self.start_election, daemon=True).start()
+            return bank_pb2.ElectionResponse(acknowledged=True)
+        else:
+            return bank_pb2.ElectionResponse(acknowledged=False)
 
     def Coordinator(self, request, context):
-        self.node_state["leader_id"] = request.leader_id
-        self.node_state["state"] = "FOLLOWER"
+        new_leader = int(request.leader_id)
+        self.leader_id = new_leader
+        self.state = "FOLLOWER"
+        self.last_heartbeat_from_leader = time.time()
+        print(f"Nuevo líder aceptado: {new_leader}")
         return bank_pb2.CoordinatorResponse(accepted=True)
-
 
 # ---------- SERVIDOR ----------
 def serve():
@@ -242,7 +310,6 @@ def serve():
     print(f"Banco Chile (gRPC) corriendo en puerto {port}")
     server.start()
     server.wait_for_termination()
-
 
 if __name__ == "__main__":
     # Asegurar que exista la carpeta de cuentas
