@@ -1,20 +1,7 @@
-# gRPC y Protocol Buffers
 grpcio>=1.60.0
 grpcio-tools>=1.60.0
 protobuf>=4.21.0
-
-# Flask y utilidades
 flask>=2.3.0
 python-dotenv>=1.0.0
-
-# Monitoreo (para Prometheus)
 prometheus-client>=0.16.0
-
-# Opcional: cliente HTTP para pruebas
 requests>=2.28.0
-# Prometheus binary and data
-prometheus.exe
-/prometheus/
-/prometheus-*/
-data/
-prometheus.yml
