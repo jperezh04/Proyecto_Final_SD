@@ -1,218 +1,264 @@
-Sistema Bancario Distribuido con Tolerancia a Fallos
-Proyecto universitario de Sistemas Distribuidos que implementa una red de tres bancos (Perú, Chile, Colombia) con comunicación gRPC, transacciones distribuidas atómicas (2PC), elección de líder (Algoritmo Bully) y monitoreo en tiempo real con Prometheus y Grafana.
+# Sistema Bancario Distribuido con Tolerancia a Fallos
 
-Tabla de Contenidos
-Descripción General
+Proyecto desarrollado para el curso de Sistemas Distribuidos de la Universidad Nacional de San Agustín. El sistema implementa una red de tres bancos distribuidos (Perú, Chile y Colombia) que se comunican mediante gRPC, incorporando mecanismos de coordinación y tolerancia a fallos mediante el protocolo Two-Phase Commit (2PC) y el Algoritmo Bully para elección de líder.
 
-Arquitectura del Sistema
+## Tabla de Contenidos
 
-Tecnologías Utilizadas
+* Descripción General
+* Arquitectura del Sistema
+* Tecnologías Utilizadas
+* Requisitos Previos
+* Instalación y Ejecución
+* Estructura del Proyecto
+* Consideraciones de Diseño
+* Trabajo Futuro
+* Autores
 
-Requisitos Previos
+---
 
-Instalación y Ejecución
+# Descripción General
 
-Estructura del Proyecto
+El sistema simula una plataforma bancaria distribuida conformada por tres entidades financieras independientes. Cada banco administra sus propias cuentas y transacciones, manteniendo autonomía operativa mientras participa en operaciones distribuidas cuando se requieren transferencias entre bancos.
 
-Consideraciones de Diseño
+Los usuarios interactúan mediante una interfaz web unificada que permite consultar cuentas, visualizar movimientos y realizar operaciones financieras sin necesidad de conocer la ubicación física o lógica de los datos.
 
-Autores
+## Funcionalidades Principales
 
-Descripción General
-El sistema simula un entorno bancario distribuido donde tres bancos independientes (Perú, Chile, Colombia) gestionan cuentas de clientes y permiten realizar operaciones financieras de forma transparente. Los usuarios pueden consultar saldos, depositar, retirar, transferir entre cuentas del mismo banco (local) o entre bancos diferentes (interbancaria con 2PC).
+### Comunicación Distribuida mediante gRPC
 
-Características Principales
-Transacciones Distribuidas Atómicas (2PC): Garantiza que las transferencias interbancarias se completen completamente o se aborten sin afectar la consistencia.
+Los bancos se comunican utilizando gRPC y Protocol Buffers, permitiendo intercambiar información de forma eficiente entre los distintos nodos del sistema.
 
-Tolerancia a Fallos con Algoritmo Bully: Detección automática de caídas de nodos y elección de un nuevo coordinador.
+### Transferencias Interbancarias con Two-Phase Commit (2PC)
 
-Monitoreo en Tiempo Real: Métricas expuestas a Prometheus y visualizadas en dashboards de Grafana.
+Las transferencias entre bancos utilizan el protocolo Two-Phase Commit para coordinar las operaciones de débito y crédito entre participantes, garantizando que la transacción se complete de forma consistente o sea cancelada.
 
-Frontend Fintech Profesional: Interfaz moderna con diseño responsivo, modo claro/oscuro, y componentes interactivos para la gestión bancaria.
+### Elección de Líder mediante Algoritmo Bully
 
-Comunicación gRPC: Protocolo de alto rendimiento para la comunicación entre servicios.
+Los nodos monitorean la disponibilidad del coordinador mediante heartbeats periódicos. Ante la detección de una falla, se inicia un proceso de elección basado en el Algoritmo Bully para seleccionar un nuevo líder.
 
-Arquitectura del Sistema
-El sistema sigue una arquitectura de microservicios con tres nodos principales (bancos) y un frontend unificado. La comunicación entre componentes se realiza mediante gRPC, y la coordinación distribuida se maneja con los algoritmos Bully (elección de líder) y Two-Phase Commit (transacciones atómicas).
+### Monitoreo del Sistema
 
-Diagrama de Componentes
-text
-┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND (Flask)                         │
-│  - Dashboard, Cuentas, Transferencias, Historial, Monitoreo    │
-│  - API Gateway para gRPC                                       │
-└────────────┬─────────────────────┬─────────────────┬────────────┘
-             │                     │                 │
-      ┌──────▼──────┐      ┌──────▼──────┐      ┌──────▼──────┐
-      │  Banco Perú │      │ Banco Chile │      │Banco Colombia│
-      │  :50051     │      │  :50052     │      │  :50053     │
-      │  Métricas   │      │  Métricas   │      │  Métricas   │
-      │  :8000      │      │  :8001      │      │  :8002      │
-      └──────┬──────┘      └──────┬──────┘      └──────┬──────┘
-             │                    │                    │
-             └────────────────────┼────────────────────┘
-                                 │
-                        ┌────────▼────────┐
-                        │   Prometheus    │
-                        │    :9090        │
-                        └────────┬────────┘
-                                 │
-                        ┌────────▼────────┐
-                        │    Grafana      │
-                        │    :3000        │
-                        └─────────────────┘
-Componentes Clave
-Servidores gRPC (Bancos):
+Cada banco expone métricas operativas que pueden ser recolectadas por Prometheus y visualizadas mediante dashboards en Grafana para supervisar el estado general del sistema.
 
-Implementan la lógica de negocio (cuentas, transacciones).
+### Interfaz Web Unificada
 
-Almacenan datos en archivos JSON locales.
+El frontend desarrollado con Flask proporciona acceso centralizado a las operaciones bancarias y a la información del clúster distribuido.
 
-Ejecutan los protocolos Bully y 2PC.
+---
 
-Exponen métricas a Prometheus.
+# Arquitectura del Sistema
 
-Frontend Flask:
+El sistema sigue una arquitectura distribuida basada en servicios independientes que colaboran mediante llamadas remotas gRPC.
 
-Sirve las vistas HTML/CSS/JS con Jinja2.
+```text
+┌────────────────────────────────────────────────────────────┐
+│                    Frontend Flask                          │
+│  Dashboard · Cuentas · Transferencias · Monitoreo         │
+└───────────────┬────────────────────────────────────────────┘
+                │
+    ┌───────────┼───────────┐
+    │           │           │
+┌───▼───┐   ┌───▼───┐   ┌───▼────┐
+│ Perú  │   │ Chile │   │Colombia│
+│ :50051│   │:50052 │   │ :50053 │
+└───┬───┘   └───┬───┘   └───┬────┘
+    │           │           │
+    └───────────┼───────────┘
+                │
+        ┌───────▼───────┐
+        │  Prometheus   │
+        │     :9090     │
+        └───────┬───────┘
+                │
+        ┌───────▼───────┐
+        │    Grafana    │
+        │     :3000     │
+        └───────────────┘
+```
 
-Actúa como API Gateway para las llamadas gRPC desde el navegador.
+## Componentes Principales
 
-Coordina las transferencias interbancarias como coordinador 2PC.
+### Bancos Distribuidos
 
-Prometheus + Grafana:
+Cada banco:
 
-Recolectan y visualizan métricas de salud, rendimiento y estado de los nodos.
+* Mantiene sus propias cuentas y transacciones.
+* Expone servicios gRPC.
+* Participa en elecciones de líder.
+* Participa en transacciones distribuidas.
+* Publica métricas para monitoreo.
 
-Tecnologías Utilizadas
-Capa	Tecnología
-Backend	Python 3.10+, gRPC, Protobuf
-Frontend	Flask, Jinja2, Tailwind CSS, JavaScript
-Persistencia	Archivos JSON
-Monitoreo	Prometheus, Grafana
-Comunicación	gRPC (Protocol Buffers)
-Coordinación	Algoritmo Bully, Two-Phase Commit
-Contenedores	Docker, Docker Compose (opcional)
-Requisitos Previos
-Python 3.10 o superior
+### Frontend Flask
 
-Pip (gestor de paquetes de Python)
+Responsable de:
 
-Prometheus (descargable desde prometheus.io)
+* Gestionar la interacción con los usuarios.
+* Actuar como cliente de los servicios gRPC.
+* Centralizar el acceso a la información de los bancos.
+* Mostrar información de monitoreo y estado del sistema.
 
-Grafana (opcional, descargable desde grafana.com)
+### Sistema de Monitoreo
 
-Instalación y Ejecución
-1. Clonar el repositorio
-bash
+Prometheus recopila métricas expuestas por los bancos y Grafana permite visualizar indicadores relevantes sobre el comportamiento del sistema.
+
+---
+
+# Tecnologías Utilizadas
+
+| Capa                     | Tecnologías                             |
+| ------------------------ | --------------------------------------- |
+| Backend                  | Python, gRPC, Protocol Buffers          |
+| Frontend                 | Flask, Jinja2, Tailwind CSS, JavaScript |
+| Persistencia             | Archivos JSON                           |
+| Monitoreo                | Prometheus, Grafana                     |
+| Comunicación             | gRPC                                    |
+| Coordinación Distribuida | Two-Phase Commit, Algoritmo Bully       |
+
+---
+
+# Requisitos Previos
+
+* Python 3.10 o superior
+* pip
+* Prometheus
+* Grafana (opcional)
+
+---
+
+# Instalación y Ejecución
+
+## 1. Clonar el repositorio
+
+```bash
 git clone <URL_DEL_REPOSITORIO>
 cd Proyecto_Final_SD
-2. Crear y activar entorno virtual
-bash
+```
+
+## 2. Crear entorno virtual
+
+```bash
 python -m venv venv
-# En Windows:
+```
+
+Windows:
+
+```bash
 venv\Scripts\activate
-# En Linux/Mac:
+```
+
+Linux/Mac:
+
+```bash
 source venv/bin/activate
-3. Instalar dependencias
-bash
+```
+
+## 3. Instalar dependencias
+
+```bash
 pip install -r requirements.txt
-4. Generar los stubs gRPC
-Ejecuta este comando en cada una de las carpetas bank-peru, bank-chile, bank-colombia y flask-frontend:
+```
 
-bash
+## 4. Generar archivos gRPC
+
+Ejecutar en cada componente que utilice el archivo proto:
+
+```bash
 python -m grpc_tools.protoc -I../proto --python_out=. --grpc_python_out=. ../proto/bank.proto
-5. Iniciar los servidores bancarios
-Abre tres terminales separadas y ejecuta:
+```
 
-bash
-# Terminal 1 - Banco Perú
-cd bank-peru
+## 5. Iniciar los bancos
+
+Banco Perú:
+
+```bash
 python server.py
+```
 
-# Terminal 2 - Banco Chile
-cd bank-chile
+Banco Chile:
+
+```bash
 python server.py
+```
 
-# Terminal 3 - Banco Colombia
-cd bank-colombia
+Banco Colombia:
+
+```bash
 python server.py
-6. Iniciar Prometheus
-Asegúrate de tener el archivo prometheus.yml en la misma carpeta que el ejecutable de Prometheus. Luego ejecuta:
+```
 
-bash
-./prometheus --config.file=prometheus.yml
-7. Iniciar el frontend Flask
-bash
-cd flask-frontend
+## 6. Iniciar Prometheus
+
+```bash
+prometheus --config.file=prometheus.yml
+```
+
+## 7. Iniciar el frontend
+
+```bash
 python app.py
-8. Acceder a la aplicación
-Frontend: http://localhost:5000
+```
 
-Prometheus: http://localhost:9090
+---
 
-Grafana: http://localhost:3000 (si está instalado)
+# Estructura del Proyecto
 
-Credenciales de prueba: admin / admin
-
-Estructura del Proyecto
-text
-.
-├── bank-peru/                  # Servidor gRPC del Banco Perú
-│   ├── server.py               # Lógica del banco, Bully, 2PC
-│   ├── data/                   # Cuentas y transacciones (JSON)
-│   └── requirements.txt
-├── bank-chile/                 # Ídem para Chile
-├── bank-colombia/              # Ídem para Colombia
-├── flask-frontend/             # Frontend y API Gateway
-│   ├── app.py                  # Rutas Flask y lógica de la UI
-│   ├── templates/              # Plantillas Jinja2
-│   ├── static/                 # CSS, JS, imágenes
-│   ├── bank_client.py          # Cliente gRPC para los bancos
-│   ├── bully.py                # Consulta del estado del clúster
-│   └── two_phase_commit.py     # Coordinador 2PC
+```text
+Proyecto_Final_SD
+├── bank-peru/
+├── bank-chile/
+├── bank-colombia/
+├── flask-frontend/
 ├── proto/
-│   └── bank.proto              # Definición de servicios gRPC
-├── prometheus.yml              # Configuración de Prometheus
-├── requirements.txt            # Dependencias globales
+├── prometheus.yml
+├── requirements.txt
 └── README.md
-Consideraciones de Diseño
-1. Transparencia de Acceso
-El usuario interactúa con un único frontend que oculta la complejidad de la red subyacente. Las cuentas de diferentes bancos se muestran en una sola tabla, y las transferencias interbancarias se ejecutan sin que el usuario tenga que preocuparse por la ubicación de los fondos.
+```
 
-2. Consistencia y Atomicidad
-Las transferencias interbancarias utilizan el protocolo Two-Phase Commit (2PC) para garantizar que los débitos y créditos se realicen de forma atómica. Si cualquier participante falla durante la transacción, se ejecuta un rollback completo, manteniendo la integridad de los saldos.
+---
 
-3. Tolerancia a Fallos
-El Algoritmo Bully permite que los nodos detecten la caída del coordinador actual y elijan uno nuevo automáticamente. Esto se complementa con un sistema de heartbeats periódicos que monitorean la salud de los nodos.
+# Consideraciones de Diseño
 
-4. Control de Concurrencia
-Cada banco implementa bloqueos a nivel de cuenta para evitar condiciones de carrera durante operaciones simultáneas. Los bloqueos se adquieren en orden consistente para prevenir deadlocks.
+## Transparencia de Acceso
 
-5. Escalabilidad
-La arquitectura basada en gRPC permite agregar nuevos bancos simplemente desplegando una nueva instancia del servidor y registrándola en el frontend. La lógica de coordinación (Bully, 2PC) escala horizontalmente sin cambios significativos.
+Los usuarios interactúan mediante una única interfaz, independientemente del banco donde se encuentren las cuentas.
 
-6. Monitoreo y Observabilidad
-Las métricas expuestas a Prometheus permiten supervisar en tiempo real:
+## Consistencia
 
-Tasa de transacciones por banco
+Las transferencias interbancarias se coordinan mediante 2PC para mantener la integridad de los datos entre participantes.
 
-Latencia de las fases del 2PC
+## Tolerancia a Fallos
 
-Estado de los nodos (líder, seguidor, caído)
+El Algoritmo Bully permite seleccionar un nuevo coordinador cuando el líder deja de responder.
 
-Salud general del clúster
+## Control de Concurrencia
 
-7. Persistencia Ligera
-Se optó por archivos JSON en lugar de bases de datos tradicionales para simplificar el despliegue y la depuración. Cada banco mantiene sus propios datos, simulando un sistema de archivos distribuido real pero sin la complejidad de replicación automática (que se puede añadir como trabajo futuro).
+Las operaciones sobre cuentas utilizan mecanismos de bloqueo para evitar conflictos durante accesos simultáneos.
 
-8. Decisiones de Diseño del Frontend
-Tailwind CSS con un sistema de diseño personalizado (variables CSS para modo claro/oscuro).
+## Observabilidad
 
-Canvas API para la visualización de la topología de red en tiempo real.
+Las métricas operativas permiten monitorear el estado de los nodos y la actividad general del sistema.
 
-Polling periódico para actualizar el timeline de eventos y el estado de los nodos sin necesidad de WebSockets.
+## Persistencia
 
-Notificaciones Toast reutilizables para feedback de acciones del usuario.
+Cada banco mantiene su información localmente mediante archivos JSON, simplificando el despliegue y la comprensión del sistema.
 
-Proyecto Final de Sistemas Distribuidos - Universidad Nacional de San Agustín, 2026.
+---
+
+# Trabajo Futuro
+
+Como posibles extensiones del proyecto se consideran:
+
+* Replicación de datos entre bancos.
+* Persistencia mediante bases de datos relacionales.
+* Recuperación automática de transacciones tras fallos.
+* Balanceo de carga.
+* Despliegue completo mediante Docker Compose.
+* Incorporación de mecanismos de autenticación y autorización más robustos.
+
+---
+
+# Autores
+
+Proyecto desarrollado para el curso de Sistemas Distribuidos.
+
+Universidad Nacional de San Agustín – 2026.
