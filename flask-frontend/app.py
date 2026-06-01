@@ -1,7 +1,9 @@
 
 import os
 
-from flask import Flask, render_template, request, redirect, url_for, session
+from bank_client import get_all_accounts_for_user
+from flask import Flask, render_template, session, redirect, url_for, request
+
 from dotenv import load_dotenv
 from datetime import datetime 
 
@@ -56,93 +58,54 @@ def dashboard():
     if 'user' not in session:
         return redirect(url_for('login'))
     
-    # Datos dummy (luego vendrán de gRPC)
+    # Obtener cuentas para calcular totales
+    accounts = get_all_accounts_for_user(session['user'])
+    total_balance = sum(float(acc['balance'].replace('$','').replace(',','')) for acc in accounts)
+    
     summary = {
         'current_node': 'Node #1 Peru',
         'current_role': 'Coordinator (Leader)',
         'network_health': 100,
         'latency': 12,
         'last_sync': 'Just now',
-        'consolidated_balance': 4285100000,
+        'consolidated_balance': total_balance,
         'balance_change': '+2.4%',
-        'total_accounts': 12405,
-        'total_regions': 8,
-        'transactions_today': 845210,
-        'connected_banks': 24,
-        'total_banks': 24,
+        'total_accounts': len(accounts),
+        'total_regions': 3,
+        'transactions_today': 0,  # Luego lo calcularemos
+        'connected_banks': 3,
+        'total_banks': 3,
         'cpu_load': 32
     }
-    user = {
-        'name': 'Admin',
-        'bank_name': 'Global Finance',
-        'role': 'Institutional Node #12',
-        'avatar_url': 'https://ui-avatars.com/api/?name=Admin&background=316bf3&color=fff'
-    }
+    user = get_user()
     return render_template('dashboard.html',
                            summary=summary,
                            user=user,
                            active_page='dashboard')
+    
 @app.route('/accounts')
 def accounts():
     if 'user' not in session:
         return redirect(url_for('login'))
-
-    # Datos dummy de cuentas (después vendrán de gRPC)
-    accounts = [
-        {
-            'number': '100-2938-4491-00',
-            'description': 'Primary Operating',
-            'bank': 'JPMorgan Chase',
-            'country': 'United States',
-            'country_code': 'us',
-            'type': 'Corporate Checking',
-            'balance': '$ 142,500,000.00',
-            'status': 'active'
-        },
-        {
-            'number': 'GB82-HSBC-4009-11',
-            'description': 'European Settlement',
-            'bank': 'HSBC Holdings',
-            'country': 'United Kingdom',
-            'country_code': 'uk',
-            'type': 'Multi-Currency DDA',
-            'balance': '£ 84,200,100.50',
-            'status': 'active'
-        },
-        {
-            'number': 'Pending Assignment',
-            'description': 'Asian Escrow',
-            'bank': 'Standard Chartered',
-            'country': 'Singapore',
-            'country_code': 'sg',
-            'type': 'Escrow Holding',
-            'balance': None,
-            'status': 'pending'
-        },
-        {
-            'number': 'DE11-DB-9902-33',
-            'description': 'Euro Treasury',
-            'bank': 'Deutsche Bank',
-            'country': 'Germany',
-            'country_code': 'de',
-            'type': 'Treasury Sweeps',
-            'balance': '€ 12,405,000.00',
-            'status': 'active'
-        }
-    ]
-
+    
+    # Obtener cuentas reales de todos los bancos
+    try:
+        all_accounts = get_all_accounts_for_user(session['user'])
+    except Exception as e:
+        print(f"Error obteniendo cuentas: {e}")
+        all_accounts = []
+    
     summary = {
-        'total_accounts': 24,
-        'total_liquidity': '$482.5M'
+        'total_accounts': len(all_accounts),
+        'total_liquidity': '$482.5M'  # Por ahora fijo
     }
-
     user = get_user()
     return render_template('accounts.html',
                            user=user,
                            active_page='accounts',
-                           accounts=accounts,
+                           accounts=all_accounts,
                            summary=summary)
-
+    
 @app.route('/transfers')
 def transfers():
     if 'user' not in session:
@@ -294,6 +257,7 @@ def banks():
                            active_page='banks',
                            banks=banks,
                            coordinator=coordinator)
+    
 @app.route('/monitoring')
 def monitoring():
     if 'user' not in session:

@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package bank;
+
+// ---------- SERVICIOS ----------
+service BankService {
+    // Operaciones básicas
+    rpc GetBalance (BalanceRequest) returns (BalanceResponse);
+    rpc Deposit (TransactionRequest) returns (TransactionResponse);
+    rpc Withdraw (TransactionRequest) returns (TransactionResponse);
+    rpc TransferLocal (TransferRequest) returns (TransferResponse);
+
+    // Two-Phase Commit (interbancario)
+    rpc Prepare (PrepareRequest) returns (PrepareResponse);
+    rpc Commit (CommitRequest) returns (CommitResponse);
+    rpc Abort (AbortRequest) returns (AbortResponse);
+
+    // Bully Election
+    rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse);
+    rpc Election (ElectionRequest) returns (ElectionResponse);
+    rpc Coordinator (CoordinatorRequest) returns (CoordinatorResponse);
+}
+
+// ---------- MENSAJES ----------
+
+// Saldo
+message BalanceRequest {
+    string account_id = 1;
+}
+message BalanceResponse {
+    string account_id = 1;
+    double balance = 2;
+    string currency = 3;
+}
+
+// Transacción simple
+message TransactionRequest {
+    string account_id = 1;
+    double amount = 2;
+}
+message TransactionResponse {
+    bool success = 1;
+    string message = 2;
+    double new_balance = 3;
+}
+
+// Transferencia local
+message TransferRequest {
+    string source_account = 1;
+    string dest_account = 2;
+    double amount = 3;
+    string description = 4;
+}
+message TransferResponse {
+    bool success = 1;
+    string message = 2;
+    string transaction_id = 3;
+}
+
+// 2PC: Prepare
+message PrepareRequest {
+    string transaction_id = 1;
+    string account_id = 2;
+    double amount = 3;
+    string operation_type = 4;  // "debit" o "credit"
+}
+message PrepareResponse {
+    string transaction_id = 1;
+    bool vote = 2;  // true = PREPARED, false = ABORT
+}
+
+// 2PC: Commit
+message CommitRequest {
+    string transaction_id = 1;
+}
+message CommitResponse {
+    bool success = 1;
+}
+
+// 2PC: Abort
+message AbortRequest {
+    string transaction_id = 1;
+}
+message AbortResponse {
+    bool success = 1;
+}
+
+// Bully
+message HeartbeatRequest {
+    string node_id = 1;
+}
+message HeartbeatResponse {
+    bool alive = 1;
+    string leader_id = 2;
+}
+
+message ElectionRequest {
+    string candidate_id = 1;
+}
+message ElectionResponse {
+    bool acknowledged = 1;
+}
+
+message CoordinatorRequest {
+    string leader_id = 1;
+}
+message CoordinatorResponse {
+    bool accepted = 1;
+}

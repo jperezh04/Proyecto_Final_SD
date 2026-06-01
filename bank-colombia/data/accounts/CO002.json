@@ -1,0 +1,9 @@
+{
+  "account_id": "CO002",
+  "owner": "cliente_colombia",
+  "balance": 12000.0,
+  "currency": "USD",
+  "type": "corriente",
+  "created_at": "2026-06-01T06:57:54.106956",
+  "updated_at": "2026-06-01T06:57:54.106956"
+}
