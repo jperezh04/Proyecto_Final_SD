@@ -17,13 +17,8 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'clave-por-defecto')
 
-# Contador global de transacciones
 transactions_today_count = 0
-
-# Estado de pausa manual (controlado desde la UI, refleja lo que enviamos al gRPC)
 manual_pause_state = {bank: False for bank in BANKS}
-
-# Log de eventos local para cuando los nodos no están disponibles
 local_event_log = []
 
 def _log_local_event(etype, title, description):
@@ -33,13 +28,9 @@ def _log_local_event(etype, title, description):
         "title": title,
         "description": description
     })
-    # Keep last 100 events
     if len(local_event_log) > 100:
         local_event_log.pop(0)
 
-# ------------------------------------------------------------
-# Funciones auxiliares
-# ------------------------------------------------------------
 def get_user():
     return {
         'name': session.get('user', 'Admin'),
@@ -83,9 +74,8 @@ def get_balance_distribution(accounts):
     heights = [int((v / max_balance) * 100) if max_balance > 0 else 0 for v in distribution.values()]
     return heights
 
-# ------------------------------------------------------------
-# Rutas de la aplicación
-# ------------------------------------------------------------
+# ── Routes ──────────────────────────────────────────────────────────────────
+
 @app.route('/')
 def login():
     return render_template('login.html', current_year=datetime.now().year)
@@ -102,8 +92,7 @@ def do_login():
     if username == 'admin' and password == 'admin':
         session['user'] = username
         return redirect(url_for('dashboard'))
-    else:
-        return render_template('login.html', error='Invalid credentials', current_year=datetime.now().year)
+    return render_template('login.html', error='Invalid credentials', current_year=datetime.now().year)
 
 @app.route('/dashboard')
 def dashboard():
@@ -187,12 +176,9 @@ def banks():
     if 'user' not in session:
         return redirect(url_for('login'))
     banks_data = {
-        'peru': {'name': 'Peru Node', 'status': 'active', 'accounts': 14205,
-                 'volume': '$2.4M', 'last_sync': '2s ago', 'sync_status': 'recent'},
-        'chile': {'name': 'Chile Node', 'status': 'active', 'accounts': 8450,
-                  'volume': '$1.1M', 'last_sync': '5s ago', 'sync_status': 'recent'},
-        'colombia': {'name': 'Colombia Node', 'status': 'active', 'accounts': 28910,
-                     'volume': '$5.1M', 'last_sync': 'Just now', 'sync_status': 'recent'}
+        'peru':     {'name': 'Peru Node',     'status': 'active', 'accounts': 14205, 'volume': '$2.4M',  'last_sync': '2s ago',   'sync_status': 'recent'},
+        'chile':    {'name': 'Chile Node',    'status': 'active', 'accounts': 8450,  'volume': '$1.1M',  'last_sync': '5s ago',   'sync_status': 'recent'},
+        'colombia': {'name': 'Colombia Node', 'status': 'active', 'accounts': 28910, 'volume': '$5.1M',  'last_sync': 'Just now', 'sync_status': 'recent'}
     }
     coordinator = {'name': 'HQ Master', 'status': 'Syncing active nodes'}
     user = get_user()
@@ -204,16 +190,10 @@ def monitoring():
     if 'user' not in session:
         return redirect(url_for('login'))
     metrics = {
-        'cluster_health': 'Healthy',
-        'time_range': '15m',
-        'cpu_load': 42,
-        'memory_used': 28.4,
-        'memory_percent': 65,
-        'latency_ms': 124,
-        'latency_trend': 'up',
-        'latency_change': '+12',
-        'throughput_tps': 8492,
-        'throughput_status': 'Healthy',
+        'cluster_health': 'Healthy', 'time_range': '15m',
+        'cpu_load': 42, 'memory_used': 28.4, 'memory_percent': 65,
+        'latency_ms': 124, 'latency_trend': 'up', 'latency_change': '+12',
+        'throughput_tps': 8492, 'throughput_status': 'Healthy',
         'tpm_heights': [60, 75, 40, 90, 85, 65, 50, 80, 95, 70],
         'nodes': [
             {'name': 'Node-A', 'cpu': 75, 'color': '[#3b82f6]'},
@@ -221,7 +201,7 @@ def monitoring():
             {'name': 'Node-C', 'cpu': 82, 'color': '[#f59e0b]'},
         ],
         'logs': [
-            {'timestamp': '2023-10-27 14:32:01.442', 'level': 'INFO', 'message': 'Node-C initiated Bully Election.'},
+            {'timestamp': '2023-10-27 14:32:01.442', 'level': 'INFO',    'message': 'Node-C initiated Bully Election.'},
             {'timestamp': '2023-10-27 14:32:01.450', 'level': 'SUCCESS', 'message': 'Node-D broadcasts Victory.'},
         ]
     }
@@ -233,7 +213,6 @@ def coordination():
     if 'user' not in session:
         return redirect(url_for('login'))
     nodes, events = get_cluster_state()
-    # Annotate pause state from local mirror
     bank_name_map = {"peru": 3, "chile": 2, "colombia": 1}
     for node in nodes:
         for bank, node_id in bank_name_map.items():
@@ -268,36 +247,29 @@ def error():
                            error_title='System state restoring',
                            error_message='The coordinator detected a disruption...')
 
-# ------------------------------------------------------------
-# Endpoints API
-# ------------------------------------------------------------
+# ── API ──────────────────────────────────────────────────────────────────────
+
 @app.route('/api/transfer', methods=['POST'])
 def api_transfer():
     global transactions_today_count
     data = request.get_json()
-    source_bank = data['source_bank']
+    source_bank    = data['source_bank']
     source_account = data['source_account']
-    dest_bank = data['dest_bank']
-    dest_account = data['dest_account']
-    amount = float(data['amount'])
-
+    dest_bank      = data['dest_bank']
+    dest_account   = data['dest_account']
+    amount         = float(data['amount'])
     if source_bank == dest_bank:
         stub = get_stub(source_bank)
         resp = stub.TransferLocal(bank_pb2.TransferRequest(
-            source_account=source_account,
-            dest_account=dest_account,
-            amount=amount,
-            description="Local transfer from frontend"
-        ))
+            source_account=source_account, dest_account=dest_account,
+            amount=amount, description="Local transfer from frontend"))
         if resp.success:
             transactions_today_count += 1
             return jsonify({'success': True, 'message': resp.message, 'tx_id': resp.transaction_id})
-        else:
-            return jsonify({'success': False, 'message': resp.message})
+        return jsonify({'success': False, 'message': resp.message})
     else:
         success, message, tx_id = execute_interbank_transfer(
-            source_bank, source_account, dest_bank, dest_account, amount
-        )
+            source_bank, source_account, dest_bank, dest_account, amount)
         if success:
             transactions_today_count += 1
         return jsonify({'success': success, 'message': message, 'tx_id': tx_id})
@@ -306,7 +278,7 @@ def api_transfer():
 def coordination_data():
     if 'user' not in session:
         return jsonify({"error": "Unauthorized"}), 401
-    nodes, events = get_cluster_state()
+    nodes, _ = get_cluster_state()
     bank_name_map = {"peru": 3, "chile": 2, "colombia": 1}
     for node in nodes:
         for bank, node_id in bank_name_map.items():
@@ -324,9 +296,7 @@ def coordination_data():
 
 @app.route('/api/events')
 def api_events():
-    """Recolecta eventos de todos los nodos gRPC + log local, los mezcla y devuelve los más recientes."""
-    all_events = list(local_event_log)  # start with local events
-
+    all_events = list(local_event_log)
     for bank in BANKS:
         try:
             stub = get_stub(bank)
@@ -339,9 +309,7 @@ def api_events():
                     "description": evt.description
                 })
         except Exception:
-            pass  # node unreachable — local events cover frontend actions
-
-    # Sort newest first, deduplicate by (timestamp, title)
+            pass
     seen = set()
     unique_events = []
     for e in sorted(all_events, key=lambda x: x.get('timestamp', ''), reverse=True):
@@ -349,14 +317,12 @@ def api_events():
         if key not in seen:
             seen.add(key)
             unique_events.append(e)
-
     return jsonify(unique_events[:30])
 
 NODE_ID_MAPPING = {"3": "peru", "2": "chile", "1": "colombia"}
-BANK_NODE_IDS  = {"peru": "3", "chile": "2", "colombia": "1"}
+BANK_NODE_IDS   = {"peru": "3", "chile": "2", "colombia": "1"}
 
 def _bank_from_node_label(label):
-    """Extract bank name from labels like 'Node #3 (Peru)' or 'N3'."""
     if not label:
         return None
     if label.startswith("Node #"):
@@ -366,38 +332,37 @@ def _bank_from_node_label(label):
         return NODE_ID_MAPPING.get(label[1])
     return None
 
+def _trigger_election_on_active_nodes(exclude_bank=None):
+    """Tell all non-paused peers to run a bully election (candidate_id=0 → lowest possible, any node wins)."""
+    for bank in BANKS:
+        if bank == exclude_bank:
+            continue
+        if manual_pause_state.get(bank, False):
+            continue
+        try:
+            stub = get_stub(bank)
+            stub.Election(bank_pb2.ElectionRequest(candidate_id="0"), timeout=2)
+        except Exception:
+            pass
+
 @app.route('/api/force-election', methods=['POST'])
 def force_election():
     data = request.get_json(silent=True) or {}
     target_node = data.get('node')
-    ts = datetime.now(timezone.utc).isoformat()
-
     if target_node:
         bank = _bank_from_node_label(target_node)
-        if bank and bank in BANKS:
-            # Send election to all nodes (bully: lower-priority triggers election)
-            for b in BANKS:
-                try:
-                    stub = get_stub(b)
-                    stub.Election(bank_pb2.ElectionRequest(candidate_id="0"), timeout=2)
-                except Exception:
-                    pass
-            _log_local_event("election",
-                             f"Election forced on {target_node}",
-                             f"Manual election trigger sent to all nodes from {target_node}")
-            return jsonify({"success": True})
-        return jsonify({"error": f"Node not found: {target_node}"}), 404
+        if not bank or bank not in BANKS:
+            return jsonify({"error": f"Node not found: {target_node}"}), 404
+        _trigger_election_on_active_nodes()
+        _log_local_event("election",
+                         f"Election forced on {target_node}",
+                         f"Manual election trigger sent to all active nodes")
     else:
-        for bank in BANKS:
-            try:
-                stub = get_stub(bank)
-                stub.Election(bank_pb2.ElectionRequest(candidate_id="0"), timeout=2)
-            except Exception:
-                pass
+        _trigger_election_on_active_nodes()
         _log_local_event("election",
                          "Global election triggered",
-                         "Manual election signal sent to all nodes in the cluster")
-        return jsonify({"success": True})
+                         "Manual election signal sent to all active nodes in the cluster")
+    return jsonify({"success": True})
 
 @app.route('/api/node/<path:node_id>/toggle', methods=['POST'])
 def toggle_node(node_id):
@@ -407,43 +372,81 @@ def toggle_node(node_id):
     if not bank:
         return jsonify({"error": f"Node not found: {node_id}"}), 404
 
-    new_state = not manual_pause_state[bank]
-    manual_pause_state[bank] = new_state
-    action = "paused" if new_state else "resumed"
+    # Determine current node state before toggling
+    nodes, _ = get_cluster_state()
+    bank_priority = {"peru": 3, "chile": 2, "colombia": 1}
+    target_priority = bank_priority[bank]
+    current_node = next((n for n in nodes if n['priority'] == target_priority), None)
+    was_leader = current_node and current_node['state'] == 'LEADER'
 
-    # Try to notify the gRPC server
-    grpc_ok = False
+    new_pause = not manual_pause_state[bank]
+    manual_pause_state[bank] = new_pause
+    action = "paused" if new_pause else "resumed"
+
+    # ── 1. Tell the gRPC server to pause/resume ──────────────────────────────
     grpc_error = None
     try:
         stub = get_stub(bank)
-        resp = stub.SetNodeStatus(bank_pb2.NodeStatusRequest(paused=new_state), timeout=2)
-        grpc_ok = resp.success
+        stub.SetNodeStatus(bank_pb2.NodeStatusRequest(paused=new_pause), timeout=2)
     except Exception as e:
         grpc_error = str(e)
 
-    # Always log the action locally so the timeline reflects it
-    evt_type = "failure" if new_state else "sync"
-    _log_local_event(evt_type,
-                     f"{node_id} {action}",
-                     f"Node manually {action} via dashboard" + (" (server unreachable)" if grpc_error else ""))
+    # ── 2. Bully logic on pause ──────────────────────────────────────────────
+    if new_pause and was_leader:
+        # The leader just went down → trigger election on remaining active nodes
+        # Give the server a moment to apply the pause before we send Election messages
+        time.sleep(0.3)
+        _trigger_election_on_active_nodes(exclude_bank=bank)
+        _log_local_event("election",
+                         f"Election triggered — {node_id} (leader) paused",
+                         "Bully algorithm: remaining nodes are electing a new coordinator")
+    elif new_pause and not was_leader:
+        _log_local_event("failure",
+                         f"{node_id} paused",
+                         "Node manually paused. Leader heartbeats will no longer reach this node.")
+    # ── 3. Bully logic on resume ─────────────────────────────────────────────
+    # ── 3. Bully logic on resume ─────────────────────────────────────────────
+    elif not new_pause:
+        time.sleep(0.3)
+        node_id_int = target_priority  # prioridad real del nodo que vuelve (3=peru, 2=chile, 1=colombia)
+        
+        # El nodo que regresa se anuncia con su ID real.
+        # Los nodos de menor prioridad recibirán candidate_id > su propio id
+        # → se rinden y pasan a FOLLOWER esperando el mensaje Coordinator.
+        try:
+            stub = get_stub(bank)
+            stub.Election(bank_pb2.ElectionRequest(candidate_id=str(node_id_int)), timeout=2)
+        except Exception:
+            pass
 
-    if grpc_ok:
-        return jsonify({"success": True, "paused": new_state, "message": f"Node {node_id} {action}"})
-    else:
-        return jsonify({
-            "success": True,
-            "paused": new_state,
-            "message": f"Node {node_id} {action} (local state updated)",
-            "warning": grpc_error or "gRPC server did not confirm"
-        })
+        # También notificamos a los demás nodos activos con el ID real del que vuelve,
+        # para que los de menor prioridad se rindan correctamente.
+        for other_bank in BANKS:
+            if other_bank == bank:
+                continue
+            if manual_pause_state.get(other_bank, False):
+                continue
+            try:
+                stub2 = get_stub(other_bank)
+                stub2.Election(bank_pb2.ElectionRequest(candidate_id=str(node_id_int)), timeout=2)
+            except Exception:
+                pass
+
+        _log_local_event("sync",
+                        f"{node_id} resumed — re-joining cluster",
+                        f"Bully: node {node_id_int} announcing itself, lower-priority nodes will defer")
+
+    msg = f"Node {node_id} {action}"
+    if grpc_error:
+        msg += " (local state updated — gRPC unreachable)"
+    return jsonify({"success": True, "paused": new_pause, "message": msg,
+                    **({"warning": grpc_error} if grpc_error else {})})
 
 @app.route('/api/export-logs')
 def export_logs():
     lines = []
-    # Include local events
     for evt in local_event_log:
         lines.append(f"[LOCAL][{evt['timestamp']}] {evt['title']}: {evt['description']}")
-    # Include gRPC events
     for bank in BANKS:
         try:
             stub = get_stub(bank)
@@ -457,6 +460,5 @@ def export_logs():
     return Response(content, mimetype="text/plain",
                     headers={"Content-Disposition": "attachment;filename=coordination-logs.txt"})
 
-# ------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)

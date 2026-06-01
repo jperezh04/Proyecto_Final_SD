@@ -170,11 +170,26 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             return bank_pb2.ElectionResponse()
         candidate_id = int(request.candidate_id)
         if candidate_id < self.node_id:
+            # Candidato de menor prioridad: me impongo y arranco mi propia elección
             if not self._election_in_progress:
                 threading.Thread(target=self.start_election, daemon=True).start()
             return bank_pb2.ElectionResponse(acknowledged=True)
-        return bank_pb2.ElectionResponse(acknowledged=False)
-
+        elif candidate_id > self.node_id:
+            # Llegó alguien de MAYOR prioridad: me rindo, paso a FOLLOWER
+            # y espero su mensaje Coordinator
+            self.state = "FOLLOWER"
+            self.leader_id = None  # esperamos el Coordinator broadcast
+            with self.election_lock:
+                self._election_in_progress = False
+            self._log_event("sync",
+                            f"Node {self.node_id} defers to Node {candidate_id}",
+                            "Higher-priority node re-joined; stepping down")
+            print(f"[{self.node_id}] Deferring to higher node {candidate_id}")
+            return bank_pb2.ElectionResponse(acknowledged=False)
+        else:
+            # candidate_id == self.node_id: mensaje propio, ignorar
+            return bank_pb2.ElectionResponse(acknowledged=False)
+    
     def Coordinator(self, request, context):
         if self.manual_pause:
             context.set_code(grpc.StatusCode.UNAVAILABLE)
