@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Error & Recovery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .animate-pulse-slow {
+        animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    .spin-slow {
+        animation: spin 4s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex-1 flex flex-col items-center justify-center p-xl lg:p-3xl relative overflow-hidden">
+    <!-- Fondo sutil con patrón de puntos -->
+    <div class="absolute inset-0 pointer-events-none opacity-[0.03]" style="background-image: radial-gradient(#1b1b1d 1px, transparent 1px); background-size: 24px 24px;"></div>
+
+    <!-- Recovery Card -->
+    <div class="w-full max-w-3xl bg-surface border border-outline-variant shadow-sm rounded-xl p-xl lg:p-2xl flex flex-col items-center text-center relative z-10">
+        
+        <!-- Área de ilustración técnica -->
+        <div class="w-full h-48 mb-xl rounded-lg bg-surface-container-low border border-surface-variant flex items-center justify-center overflow-hidden relative">
+            <div class="relative z-10 flex items-center justify-center gap-lg">
+                <!-- Nodo central (origen) -->
+                <div class="w-12 h-12 rounded-full border-2 border-outline-variant flex items-center justify-center bg-surface">
+                    <span class="material-symbols-outlined text-outline">database</span>
+                </div>
+
+                <!-- Línea de conexión activa (animada) -->
+                <div class="w-24 h-[2px] bg-outline-variant relative overflow-hidden">
+                    <div class="absolute left-0 top-0 h-full w-1/3 bg-secondary animate-pulse-slow"></div>
+                </div>
+
+                <!-- Nodo coordinador (reconectando) -->
+                <div class="w-16 h-16 rounded-full border-2 border-secondary flex items-center justify-center bg-secondary-fixed/20 shadow-[0_0_15px_rgba(0,81,213,0.2)]">
+                    <span class="material-symbols-outlined text-secondary spin-slow">autorenew</span>
+                </div>
+
+                <!-- Línea de conexión rota -->
+                <div class="w-24 h-[2px] relative flex items-center">
+                    <div class="w-10 h-full bg-error/50"></div>
+                    <div class="w-4 flex justify-center">
+                        <span class="material-symbols-outlined text-[16px] text-error">close</span>
+                    </div>
+                    <div class="w-10 h-full bg-outline-variant"></div>
+                </div>
+
+                <!-- Nodo caído -->
+                <div class="w-12 h-12 rounded-full border-2 border-error flex items-center justify-center bg-error-container">
+                    <span class="material-symbols-outlined text-on-error-container">lan</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Badge de estado -->
+        <div class="inline-flex items-center gap-sm px-md py-sm bg-secondary-fixed text-on-secondary-fixed rounded-full mb-lg">
+            <span class="material-symbols-outlined text-[16px] spin-slow">sync</span>
+            <span class="font-label-md text-label-md tracking-wide">{{ recovery.status_message | default('AUTOMATIC RECOVERY IN PROGRESS') }}</span>
+        </div>
+
+        <h2 class="font-headline-lg text-headline-lg text-on-surface mb-md">{{ error_title | default('System state restoring') }}</h2>
+        <p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl mx-auto mb-xl">
+            {{ error_message | default('The coordinator detected a disruption in the network topology. A rollback was executed to maintain ledger integrity, and automatic reconciliation is underway.') }}
+        </p>
+
+        <!-- Detalles del diagnóstico -->
+        <div class="w-full grid grid-cols-1 md:grid-cols-3 gap-md mb-xl text-left">
+            <!-- Estado del nodo caído -->
+            <div class="p-md rounded-lg bg-surface-container-low border border-surface-variant flex flex-col gap-xs">
+                <div class="flex items-center gap-sm text-on-surface-variant mb-xs">
+                    <span class="material-symbols-outlined text-[18px]">dns</span>
+                    <span class="font-label-md text-label-md">{{ failed_node.name | default('Node #12') }} Status</span>
+                </div>
+                <span class="font-mono-sm text-mono-sm text-error flex items-center gap-xs">
+                    <span class="w-2 h-2 rounded-full bg-error"></span> {{ failed_node.status | default('Disconnected') }}
+                </span>
+                <span class="font-body-sm text-body-sm text-on-surface-variant text-xs">Last ping: {{ failed_node.last_ping | default('42s ago') }}</span>
+            </div>
+
+            <!-- Evento del coordinador -->
+            <div class="p-md rounded-lg bg-surface-container-low border border-surface-variant flex flex-col gap-xs">
+                <div class="flex items-center gap-sm text-on-surface-variant mb-xs">
+                    <span class="material-symbols-outlined text-[18px]">gavel</span>
+                    <span class="font-label-md text-label-md">Coordinator Event</span>
+                </div>
+                <span class="font-mono-sm text-mono-sm text-on-surface flex items-center gap-xs">
+                    {{ recovery.trigger | default('Timeout Threshold Reached') }}
+                </span>
+                <span class="font-body-sm text-body-sm text-on-surface-variant text-xs">Rollback ID: {{ recovery.rollback_id | default('RBK-992-A') }}</span>
+            </div>
+
+            <!-- Rutina de recuperación -->
+            <div class="p-md rounded-lg bg-secondary-fixed/30 border border-secondary/20 flex flex-col gap-xs">
+                <div class="flex items-center gap-sm text-on-secondary-fixed mb-xs">
+                    <span class="material-symbols-outlined text-[18px]">health_and_safety</span>
+                    <span class="font-label-md text-label-md">Recovery Routine</span>
+                </div>
+                <span class="font-mono-sm text-mono-sm text-secondary flex items-center gap-xs">
+                    <span class="w-2 h-2 rounded-full bg-secondary animate-pulse-slow"></span> {{ recovery.routine | default('Synchronizing Ledger') }}
+                </span>
+                <span class="font-body-sm text-body-sm text-on-surface-variant text-xs">Est. completion: {{ recovery.eta | default('~15s') }}</span>
+            </div>
+        </div>
+
+        <!-- Botón de acción -->
+        <a href="{{ url_for('dashboard') }}" class="bg-secondary text-on-secondary px-xl py-md rounded-lg font-label-md text-label-md flex items-center gap-sm hover:bg-secondary/90 transition-colors shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">refresh</span>
+            {{ recovery.button_text | default('Retry Connection') }}
+        </a>
+    </div>
+
+    <!-- Pie de página informativo -->
+    <div class="mt-lg text-center">
+        <p class="font-body-sm text-body-sm text-on-surface-variant/70">
+            If this issue persists for more than 5 minutes, please contact <a class="text-secondary hover:underline" href="#">Platform Engineering</a>.
+        </p>
+    </div>
+</div>
+{% endblock %}

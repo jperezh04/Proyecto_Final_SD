@@ -1,0 +1,226 @@
+/* ===== DESIGN SYSTEM - Executive FinTech ===== */
+/* Basado en DESIGN.md de Stitch */
+
+:root {
+  /* Colores */
+  --color-primary: #000000;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #131b2e;
+  --color-on-primary-container: #7c839b;
+
+  --color-secondary: #0051d5;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #316bf3;
+
+  --color-surface: #fcf8fa;
+  --color-surface-dim: #dcd9db;
+  --color-surface-bright: #fcf8fa;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f6f3f5;
+  --color-surface-container: #f0edef;
+  --color-surface-container-high: #eae7e9;
+  --color-surface-container-highest: #e4e2e4;
+
+  --color-on-surface: #1b1b1d;
+  --color-on-surface-variant: #45464d;
+
+  --color-outline: #76777d;
+  --color-outline-variant: #c6c6cd;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+
+  --color-background: #fcf8fa;
+  --color-on-background: #1b1b1d;
+
+  /* Semánticos */
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+  --color-info: #3b82f6;
+
+  /* Tipografía */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  --text-display-lg: 700 48px/56px var(--font-primary);
+  --text-headline-lg: 600 32px/40px var(--font-primary);
+  --text-headline-md: 600 24px/32px var(--font-primary);
+  --text-headline-sm: 600 20px/28px var(--font-primary);
+  --text-body-lg: 400 18px/28px var(--font-primary);
+  --text-body-md: 400 16px/24px var(--font-primary);
+  --text-body-sm: 400 14px/20px var(--font-primary);
+  --text-label-md: 600 12px/16px var(--font-primary);
+  --text-mono-sm: 500 13px/18px var(--font-mono);
+
+  /* Espaciado */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  --spacing-3xl: 64px;
+
+  /* Bordes */
+  --radius-sm: 2px;
+  --radius-default: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Sombras */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-elevated: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-overlay: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
+
+  /* Layout */
+  --sidebar-width: 280px;
+  --topbar-height: 64px;
+}
+
+/* Reset global */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font: var(--text-body-md);
+  color: var(--color-on-surface);
+  background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tipografía base */
+h1 { font: var(--text-display-lg); }
+h2 { font: var(--text-headline-lg); }
+h3 { font: var(--text-headline-md); }
+h4 { font: var(--text-headline-sm); }
+p  { font: var(--text-body-md); }
+small { font: var(--text-body-sm); }
+
+/* Utilidades de color de fondo */
+.bg-surface { background: var(--color-surface); }
+.bg-container { background: var(--color-surface-container); }
+
+/* Tarjetas */
+.card {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* Botones */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-default);
+  font: var(--text-label-md);
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+.btn-primary {
+  background: var(--color-secondary);
+  color: var(--color-on-secondary);
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  border-color: var(--color-outline-variant);
+}
+.btn-secondary:hover { background: var(--color-surface-container); }
+
+/* Badges de estado */
+.badge {
+  display: inline-block;
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-full);
+  font: var(--text-label-md);
+}
+.badge-success { background: rgba(34,197,94,0.1); color: var(--color-success); }
+.badge-error   { background: rgba(186,26,26,0.1); color: var(--color-error); }
+.badge-warning { background: rgba(234,179,8,0.1); color: var(--color-warning); }
+.badge-info    { background: rgba(59,130,246,0.1); color: var(--color-info); }
+
+/* Tablas */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table th {
+  background: var(--color-surface-container);
+  font: var(--text-label-md);
+  text-transform: uppercase;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+.data-table td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-surface-container-high);
+}
+.data-table tr:hover td {
+  background: var(--color-surface);
+}
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-width);
+  background: #0F172A;  /* Dark Navy fijo */
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: var(--spacing-lg) 0;
+  color: #ffffff;
+}
+.sidebar .logo {
+  padding: 0 var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  font: var(--text-headline-sm);
+  color: white;
+}
+.sidebar nav a {
+  display: block;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  color: #94A3B8;  /* muted gray */
+  text-decoration: none;
+  font: var(--text-body-sm);
+  border-left: 3px solid transparent;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+.sidebar nav a:hover,
+.sidebar nav a.active {
+  color: #ffffff;
+  background: rgba(255,255,255,0.05);
+  border-left-color: var(--color-secondary);
+}
+
+/* Contenido principal (desplazado por sidebar) */
+.main-content {
+  margin-left: var(--sidebar-width);
+  padding: var(--spacing-lg);
+  min-height: 100vh;
+}
+
+/* Topbar (opcional) */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background: var(--color-surface-container-lowest);
+  border-bottom: 1px solid var(--color-outline-variant);
+  margin-bottom: var(--spacing-lg);
+}

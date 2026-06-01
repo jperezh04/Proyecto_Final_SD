@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Accounts{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Scrollbar personalizado para la tabla */
+    .custom-scrollbar::-webkit-scrollbar {
+        height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header & Metrics -->
+<div class="flex flex-col lg:flex-row lg:items-end justify-between gap-md mb-xl">
+    <div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface mb-xs">My Accounts</h1>
+        <p class="font-body-md text-body-md text-on-surface-variant">Manage and monitor liquidity across the distributed banking network.</p>
+    </div>
+    <!-- KPI Summary -->
+    <div class="flex items-center gap-md bg-surface-container-lowest p-md rounded-lg border border-outline-variant shadow-sm">
+        <div class="flex flex-col">
+            <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Network Total Accounts</span>
+            <span class="font-headline-md text-headline-md text-primary mt-1">{{ summary.total_accounts }} Active</span>
+        </div>
+        <div class="h-10 w-px bg-outline-variant mx-2"></div>
+        <div class="flex flex-col">
+            <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Total Liquidity</span>
+            <span class="font-headline-md text-headline-md text-secondary mt-1">{{ summary.total_liquidity }} <span class="font-body-sm text-body-sm text-on-surface-variant">USD Eq</span></span>
+        </div>
+    </div>
+</div>
+
+<!-- Data Table Section -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col">
+    <!-- Table Toolbar -->
+    <div class="px-md py-md border-b border-outline-variant bg-surface flex justify-between items-center">
+        <div class="flex gap-sm">
+            <button class="px-md py-2 border border-outline-variant bg-surface-container-lowest text-on-surface font-label-md text-label-md rounded flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+                <span class="material-symbols-outlined text-[18px]">filter_list</span> Filter
+            </button>
+            <button class="px-md py-2 border border-outline-variant bg-surface-container-lowest text-on-surface font-label-md text-label-md rounded flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+                <span class="material-symbols-outlined text-[18px]">download</span> Export
+            </button>
+        </div>
+        <button class="px-lg py-2 bg-secondary text-on-secondary font-label-md text-label-md rounded flex items-center gap-2 hover:bg-secondary/90 transition-colors shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">add</span> New Account
+        </button>
+    </div>
+
+    <!-- Table Responsive Container -->
+    <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full text-left border-collapse min-w-[900px]">
+            <thead class="bg-surface-container-low border-b border-outline-variant">
+                <tr>
+                    <th class="px-lg py-md font-label-md text-label-md uppercase text-on-surface-variant tracking-wider w-[220px]">Account Number</th>
+                    <th class="px-lg py-md font-label-md text-label-md uppercase text-on-surface-variant tracking-wider">Bank</th>
+                    <th class="px-lg py-md font-label-md text-label-md uppercase text-on-surface-variant tracking-wider">Country</th>
+                    <th class="px-lg py-md font-label-md text-label-md uppercase text-on-surface-variant tracking-wider">Account Type</th>
+                    <th class="px-lg py-md font-label-md text-label-md uppercase text-on-surface-variant tracking-wider text-right">Balance</th>
+                    <th class="px-lg py-md font-label-md text-label-md uppercase text-on-surface-variant tracking-wider text-center w-[120px]">Status</th>
+                    <th class="px-lg py-md font-label-md text-label-md uppercase text-on-surface-variant tracking-wider text-center w-[80px]"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant">
+                {% for account in accounts %}
+                <tr class="hover:bg-surface-container-low/50 transition-colors group {{ 'bg-surface-container-lowest' if account.status == 'pending' else '' }}">
+                    <td class="px-lg py-md">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant">
+                                {% if account.status == 'pending' %}
+                                <span class="material-symbols-outlined text-[16px]">hourglass_empty</span>
+                                {% else %}
+                                <span class="material-symbols-outlined text-[16px]">account_balance_wallet</span>
+                                {% endif %}
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="font-mono-sm text-mono-sm text-on-surface font-medium">{{ account.number }}</span>
+                                <span class="font-body-sm text-[11px] text-on-surface-variant mt-0.5">{{ account.description }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-lg py-md font-body-sm text-body-sm text-on-surface font-medium">{{ account.bank }}</td>
+                    <td class="px-lg py-md font-body-sm text-body-sm text-on-surface flex items-center gap-2">
+                        <!-- Bandera simulada -->
+                        <span class="w-4 h-3 rounded-[2px] bg-[#E4E2E4] inline-block overflow-hidden relative">
+                            {% if account.country_code == 'us' %}
+                            <div class="absolute inset-0 bg-blue-800 w-1/2 h-1/2"></div>
+                            <div class="absolute top-1/2 w-full h-px bg-red-600"></div>
+                            {% elif account.country_code == 'uk' %}
+                            <div class="absolute inset-0 bg-blue-800"></div>
+                            <div class="absolute top-1/2 left-0 w-full h-[2px] bg-red-600 -translate-y-1/2"></div>
+                            <div class="absolute top-0 left-1/2 w-[2px] h-full bg-red-600 -translate-x-1/2"></div>
+                            {% elif account.country_code == 'sg' %}
+                            <div class="absolute inset-0 bg-red-600"></div>
+                            <div class="absolute top-1 right-1 w-1 h-1 bg-white rounded-full"></div>
+                            {% elif account.country_code == 'de' %}
+                            <div class="absolute inset-0 flex">
+                                <div class="w-1/3 h-full bg-black"></div>
+                                <div class="w-1/3 h-full bg-red-600"></div>
+                                <div class="w-1/3 h-full bg-yellow-400"></div>
+                            </div>
+                            {% else %}
+                            <div class="absolute inset-0 bg-surface-variant"></div>
+                            {% endif %}
+                        </span>
+                        {{ account.country }}
+                    </td>
+                    <td class="px-lg py-md font-body-sm text-body-sm text-on-surface">{{ account.type }}</td>
+                    <td class="px-lg py-md font-mono-sm text-mono-sm text-on-surface text-right font-medium tracking-tight {{ 'text-on-surface-variant' if account.status == 'pending' else '' }}">
+                        {% if account.status == 'pending' %}--{% else %}{{ account.balance }}{% endif %}
+                    </td>
+                    <td class="px-lg py-md text-center">
+                        <span class="inline-flex items-center justify-center px-2 py-1 rounded font-label-md text-[10px] uppercase font-bold tracking-wide border
+                            {% if account.status == 'active' %}
+                                bg-secondary-fixed text-on-secondary-fixed border-secondary-fixed-dim/30
+                            {% else %}
+                                bg-surface-variant text-on-surface-variant border-outline-variant
+                            {% endif %}">
+                            {{ account.status | capitalize }}
+                        </span>
+                    </td>
+                    <td class="px-lg py-md text-center relative">
+                        <button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:bg-surface-container-highest transition-colors group-hover:opacity-100 opacity-0 focus:outline-none focus:ring-2 focus:ring-secondary/50"
+                                onclick="toggleMenu('menu-{{ loop.index }}')">
+                            <span class="material-symbols-outlined">more_vert</span>
+                        </button>
+                        <!-- Menú desplegable -->
+                        <div class="hidden absolute right-8 top-10 w-48 bg-surface-container-lowest border border-outline-variant shadow-lg rounded-lg py-1 z-10 flex flex-col text-left"
+                             id="menu-{{ loop.index }}">
+                            <a class="px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low flex items-center gap-2" href="#">
+                                <span class="material-symbols-outlined text-[18px] text-on-surface-variant">list_alt</span> View Movements
+                            </a>
+                            <a class="px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low flex items-center gap-2" href="#">
+                                <span class="material-symbols-outlined text-[18px] text-on-surface-variant">arrow_downward</span> Deposit
+                            </a>
+                            <a class="px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low flex items-center gap-2" href="#">
+                                <span class="material-symbols-outlined text-[18px] text-on-surface-variant">arrow_upward</span> Withdraw
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginación / Footer -->
+    <div class="px-lg py-md border-t border-outline-variant bg-surface-container-lowest flex justify-between items-center">
+        <span class="font-body-sm text-body-sm text-on-surface-variant">Showing 1 to {{ accounts|length }} of {{ summary.total_accounts }} entries</span>
+        <div class="flex items-center gap-1">
+            <button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-50" disabled>
+                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+            </button>
+            <button class="w-8 h-8 rounded bg-secondary-fixed text-on-secondary-fixed font-label-md text-label-md flex items-center justify-center">1</button>
+            <button class="w-8 h-8 rounded hover:bg-surface-container-low text-on-surface-variant font-label-md text-label-md flex items-center justify-center transition-colors">2</button>
+            <button class="w-8 h-8 rounded hover:bg-surface-container-low text-on-surface-variant font-label-md text-label-md flex items-center justify-center transition-colors">3</button>
+            <span class="w-8 h-8 flex items-center justify-center text-on-surface-variant text-[12px]">...</span>
+            <button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors">
+                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleMenu(menuId) {
+        const menu = document.getElementById(menuId);
+        const allMenus = document.querySelectorAll('[id^="menu-"]');
+        allMenus.forEach(m => {
+            if (m.id !== menuId) m.classList.add('hidden');
+        });
+        menu.classList.toggle('hidden');
+    }
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('td.relative')) {
+            document.querySelectorAll('[id^="menu-"]').forEach(m => m.classList.add('hidden'));
+        }
+    });
+</script>
+{% endblock %}

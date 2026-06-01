@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}History{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Scrollbar personalizado para la tabla */
+    .table-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    .table-container::-webkit-scrollbar-track {
+        background: #f6f3f5;
+    }
+    .table-container::-webkit-scrollbar-thumb {
+        background: #c6c6cd;
+        border-radius: 4px;
+    }
+    .table-container::-webkit-scrollbar-thumb:hover {
+        background: #76777d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-xl flex justify-between items-end">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg text-on-surface mb-xs">Transaction History</h2>
+        <p class="font-body-sm text-body-sm text-on-surface-variant">Review and manage all inbound and outbound institutional transfers.</p>
+    </div>
+    <div class="flex gap-sm">
+        <button class="flex items-center gap-xs px-md py-sm border border-outline-variant rounded bg-surface-container-lowest text-on-surface font-label-md text-label-md hover:bg-surface-container-low transition-colors">
+            <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+            Export CSV
+        </button>
+        <a href="{{ url_for('transfers') }}" class="flex items-center gap-xs px-md py-sm border border-transparent rounded bg-primary text-on-primary font-label-md text-label-md hover:bg-primary/90 transition-colors">
+            <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+            New Transfer
+        </a>
+    </div>
+</div>
+
+<!-- Filters Area -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md mb-md flex flex-wrap items-end gap-md shadow-sm">
+    <div class="flex flex-col gap-xs flex-1 min-w-[200px]">
+        <label class="font-label-md text-label-md text-on-surface-variant">Date Range</label>
+        <div class="relative">
+            <span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline" style="font-size: 18px;">calendar_today</span>
+            <input class="w-full pl-xl pr-md py-sm rounded border border-outline-variant bg-surface text-on-surface font-body-sm text-body-sm focus:border-secondary focus:ring-1 focus:ring-secondary outline-none cursor-pointer"
+                   placeholder="Last 30 Days" type="text" value="{{ filters.date_range | default('Oct 1 - Oct 31, 2023') }}"/>
+        </div>
+    </div>
+    <div class="flex flex-col gap-xs flex-1 min-w-[200px]">
+        <label class="font-label-md text-label-md text-on-surface-variant">Bank / Institution</label>
+        <select class="w-full px-md py-sm rounded border border-outline-variant bg-surface text-on-surface font-body-sm text-body-sm focus:border-secondary focus:ring-1 focus:ring-secondary outline-none appearance-none cursor-pointer">
+            <option>All Institutions</option>
+            {% for bank in banks %}
+            <option>{{ bank.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="flex flex-col gap-xs flex-1 min-w-[200px]">
+        <label class="font-label-md text-label-md text-on-surface-variant">Transaction Type</label>
+        <select class="w-full px-md py-sm rounded border border-outline-variant bg-surface text-on-surface font-body-sm text-body-sm focus:border-secondary focus:ring-1 focus:ring-secondary outline-none appearance-none cursor-pointer">
+            <option>All Types</option>
+            <option>Wire Transfer</option>
+            <option>ACH Settlement</option>
+            <option>Internal Sweep</option>
+            <option>FX Settlement</option>
+            <option>Interbank Transfer</option>
+            <option>Local Transfer</option>
+        </select>
+    </div>
+    <div class="flex gap-sm">
+        <button class="px-md py-sm rounded border border-outline-variant bg-surface-container text-on-surface font-label-md text-label-md hover:bg-surface-container-high transition-colors">
+            Clear
+        </button>
+        <button class="px-md py-sm rounded border border-transparent bg-secondary text-on-secondary font-label-md text-label-md hover:bg-secondary/90 transition-colors">
+            Apply Filters
+        </button>
+    </div>
+</div>
+
+<!-- Data Table Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg shadow-sm overflow-hidden flex flex-col">
+    <div class="overflow-x-auto table-container">
+        <table class="w-full text-left border-collapse min-w-[1000px]">
+            <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant">
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Date</th>
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Time (UTC)</th>
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Type</th>
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Source Bank</th>
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Destination Bank</th>
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap text-right">Amount (USD)</th>
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap text-center">Status</th>
+                    <th class="px-md py-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-surface-variant">
+                {% for tx in transactions %}
+                <tr class="hover:bg-surface-container-low transition-colors group cursor-pointer {{ 'bg-error/5' if tx.status == 'error' else '' }}">
+                    <td class="px-md py-md font-mono-sm text-mono-sm text-on-surface whitespace-nowrap">{{ tx.date }}</td>
+                    <td class="px-md py-md font-mono-sm text-mono-sm text-on-surface-variant whitespace-nowrap">{{ tx.time }}</td>
+                    <td class="px-md py-md font-body-sm text-body-sm text-on-surface whitespace-nowrap">{{ tx.type }}</td>
+                    <td class="px-md py-md font-body-sm text-body-sm text-on-surface whitespace-nowrap flex items-center gap-xs">
+                        <span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+                        {{ tx.source_bank }}
+                    </td>
+                    <td class="px-md py-md font-body-sm text-body-sm text-on-surface whitespace-nowrap">{{ tx.dest_bank }}</td>
+                    <td class="px-md py-md font-mono-sm text-mono-sm text-on-surface text-right font-medium whitespace-nowrap {{ 'text-error' if tx.amount.startswith('-') else 'text-[#10b981]' }}">
+                        {{ tx.amount }}
+                    </td>
+                    <td class="px-md py-md text-center whitespace-nowrap">
+                        <span class="inline-flex items-center px-2 py-1 rounded font-label-md text-label-md
+                            {% if tx.status == 'successful' %}
+                                bg-secondary/10 text-secondary
+                            {% elif tx.status == 'pending' %}
+                                bg-surface-variant text-on-surface-variant
+                            {% elif tx.status == 'error' %}
+                                bg-error/10 text-error
+                            {% elif tx.status == 'rollback' %}
+                                bg-error/10 text-error
+                            {% endif %}">
+                            {{ tx.status | capitalize }}
+                        </span>
+                    </td>
+                    <td class="px-md py-md text-right">
+                        <button class="text-outline hover:text-on-surface opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span class="material-symbols-outlined" style="font-size: 20px;">more_vert</span>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination / Footer -->
+    <div class="px-md py-sm border-t border-outline-variant bg-surface-container-lowest flex justify-between items-center">
+        <span class="font-body-sm text-body-sm text-on-surface-variant">Showing 1-{{ transactions|length }} of {{ total_transactions }} transactions</span>
+        <div class="flex gap-xs">
+            <button class="p-xs rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50" disabled>
+                <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+            </button>
+            <button class="p-xs rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container-low">
+                <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

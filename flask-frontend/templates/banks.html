@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Connected Banks{% endblock %}
+
+{% block extra_head %}
+<style>
+    .network-line {
+        stroke: #c6c6cd;
+        stroke-width: 2;
+        stroke-dasharray: 4 4;
+        animation: flow 20s linear infinite;
+    }
+    .network-line.active {
+        stroke: #0051d5;
+        stroke-width: 2;
+        stroke-dasharray: 4 4;
+        animation: flow 10s linear infinite;
+    }
+    @keyframes flow {
+        from { stroke-dashoffset: 100; }
+        to { stroke-dashoffset: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="relative w-full max-w-5xl mx-auto h-[600px] border border-outline-variant rounded-xl bg-surface p-lg shadow-sm">
+    <!-- Background SVG para las líneas de conexión -->
+    <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;">
+        <!-- Master a Perú -->
+        <line class="network-line {{ 'active' if banks.peru.status == 'active' else '' }}" 
+              x1="50%" x2="25%" y1="20%" y2="60%"></line>
+        <!-- Master a Colombia -->
+        <line class="network-line {{ 'active' if banks.colombia.status == 'active' else '' }}" 
+              x1="50%" x2="50%" y1="20%" y2="80%"></line>
+        <!-- Master a Chile -->
+        <line class="network-line {{ 'active' if banks.chile.status == 'active' else '' }}" 
+              x1="50%" x2="75%" y1="20%" y2="60%"></line>
+        <!-- Conexiones cruzadas -->
+        <line class="network-line {{ 'active' if banks.peru.status == 'active' and banks.colombia.status == 'active' else '' }}" 
+              x1="25%" x2="50%" y1="60%" y2="80%"></line>
+        <line class="network-line {{ 'active' if banks.chile.status == 'active' and banks.colombia.status == 'active' else '' }}" 
+              x1="75%" x2="50%" y1="60%" y2="80%"></line>
+    </svg>
+
+    <!-- Nodo Central: Coordinador -->
+    <div class="absolute left-1/2 top-[20%] -translate-x-1/2 -translate-y-1/2 z-10">
+        <div class="bg-primary text-on-primary p-md rounded-xl shadow-md border border-outline w-48 text-center">
+            <span class="material-symbols-outlined text-3xl mb-sm block" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+            <h3 class="font-headline-sm text-headline-sm">{{ coordinator.name }}</h3>
+            <p class="font-mono-sm text-mono-sm text-inverse-primary mt-xs">{{ coordinator.status }}</p>
+        </div>
+    </div>
+
+    <!-- Nodo: Perú -->
+    <div class="absolute left-[25%] top-[60%] -translate-x-1/2 -translate-y-1/2 z-10 w-64 group cursor-pointer">
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm transition-all group-hover:border-secondary group-hover:shadow-md
+                    {{ 'opacity-80' if banks.peru.status != 'active' else '' }}">
+            <div class="flex justify-between items-center mb-md border-b border-outline-variant pb-sm">
+                <h3 class="font-headline-sm text-headline-sm text-on-surface flex items-center gap-sm">
+                    <span class="material-symbols-outlined {{ 'text-secondary' if banks.peru.status == 'active' else 'text-outline' }}"
+                          style="font-variation-settings: 'FILL' 1;">
+                        {{ 'public' if banks.peru.status == 'active' else 'public_off' }}
+                    </span>
+                    {{ banks.peru.name }}
+                </h3>
+                <span class="font-label-md text-label-md px-sm py-xs rounded-full flex items-center gap-xs
+                            {% if banks.peru.status == 'active' %}
+                                bg-secondary-fixed/20 text-secondary
+                            {% else %}
+                                bg-surface-container-highest text-on-surface-variant
+                            {% endif %}">
+                    <span class="w-2 h-2 rounded-full {{ 'bg-secondary' if banks.peru.status == 'active' else 'bg-outline' }} block"></span>
+                    {{ banks.peru.status | capitalize }}
+                </span>
+            </div>
+            <div class="space-y-xs">
+                <div class="flex justify-between font-body-sm text-body-sm">
+                    <span class="text-on-surface-variant">Accounts:</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-on-surface' if banks.peru.status == 'active' else 'text-on-surface-variant' }}">
+                        {{ "{:,}".format(banks.peru.accounts) }}
+                    </span>
+                </div>
+                <div class="flex justify-between font-body-sm text-body-sm">
+                    <span class="text-on-surface-variant">Vol (24h):</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-on-surface' if banks.peru.status == 'active' else 'text-on-surface-variant' }}">
+                        {{ banks.peru.volume if banks.peru.status == 'active' else '--' }}
+                    </span>
+                </div>
+                <div class="flex justify-between font-body-sm text-body-sm pt-sm border-t border-surface-container-highest">
+                    <span class="text-on-surface-variant">Last Sync:</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-secondary' if banks.peru.sync_status == 'recent' else 'text-error' }}">
+                        {{ banks.peru.last_sync }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nodo: Colombia -->
+    <div class="absolute left-[50%] top-[80%] -translate-x-1/2 -translate-y-1/2 z-10 w-64 group cursor-pointer">
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm transition-all group-hover:border-secondary group-hover:shadow-md
+                    {{ 'opacity-80' if banks.colombia.status != 'active' else '' }}">
+            <div class="flex justify-between items-center mb-md border-b border-outline-variant pb-sm">
+                <h3 class="font-headline-sm text-headline-sm text-on-surface flex items-center gap-sm">
+                    <span class="material-symbols-outlined {{ 'text-secondary' if banks.colombia.status == 'active' else 'text-outline' }}"
+                          style="font-variation-settings: 'FILL' 1;">
+                        {{ 'public' if banks.colombia.status == 'active' else 'public_off' }}
+                    </span>
+                    {{ banks.colombia.name }}
+                </h3>
+                <span class="font-label-md text-label-md px-sm py-xs rounded-full flex items-center gap-xs
+                            {% if banks.colombia.status == 'active' %}
+                                bg-secondary-fixed/20 text-secondary
+                            {% else %}
+                                bg-surface-container-highest text-on-surface-variant
+                            {% endif %}">
+                    <span class="w-2 h-2 rounded-full {{ 'bg-secondary' if banks.colombia.status == 'active' else 'bg-outline' }} block"></span>
+                    {{ banks.colombia.status | capitalize }}
+                </span>
+            </div>
+            <div class="space-y-xs">
+                <div class="flex justify-between font-body-sm text-body-sm">
+                    <span class="text-on-surface-variant">Accounts:</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-on-surface' if banks.colombia.status == 'active' else 'text-on-surface-variant' }}">
+                        {{ "{:,}".format(banks.colombia.accounts) }}
+                    </span>
+                </div>
+                <div class="flex justify-between font-body-sm text-body-sm">
+                    <span class="text-on-surface-variant">Vol (24h):</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-on-surface' if banks.colombia.status == 'active' else 'text-on-surface-variant' }}">
+                        {{ banks.colombia.volume if banks.colombia.status == 'active' else '--' }}
+                    </span>
+                </div>
+                <div class="flex justify-between font-body-sm text-body-sm pt-sm border-t border-surface-container-highest">
+                    <span class="text-on-surface-variant">Last Sync:</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-secondary' if banks.colombia.sync_status == 'recent' else 'text-error' }}">
+                        {{ banks.colombia.last_sync }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nodo: Chile -->
+    <div class="absolute left-[75%] top-[60%] -translate-x-1/2 -translate-y-1/2 z-10 w-64 group cursor-pointer">
+        <div class="bg-surface-container-low border border-outline-variant rounded-xl p-md shadow-sm transition-all group-hover:border-outline opacity-80
+                    {{ 'opacity-80' if banks.chile.status != 'active' else '' }}">
+            <div class="flex justify-between items-center mb-md border-b border-outline-variant pb-sm">
+                <h3 class="font-headline-sm text-headline-sm text-on-surface-variant flex items-center gap-sm">
+                    <span class="material-symbols-outlined {{ 'text-secondary' if banks.chile.status == 'active' else 'text-outline' }}"
+                          style="font-variation-settings: 'FILL' 1;">
+                        {{ 'public' if banks.chile.status == 'active' else 'public_off' }}
+                    </span>
+                    {{ banks.chile.name }}
+                </h3>
+                <span class="font-label-md text-label-md px-sm py-xs rounded-full flex items-center gap-xs
+                            {% if banks.chile.status == 'active' %}
+                                bg-secondary-fixed/20 text-secondary
+                            {% else %}
+                                bg-surface-container-highest text-on-surface-variant
+                            {% endif %}">
+                    <span class="w-2 h-2 rounded-full {{ 'bg-secondary' if banks.chile.status == 'active' else 'bg-outline' }} block"></span>
+                    {{ banks.chile.status | capitalize }}
+                </span>
+            </div>
+            <div class="space-y-xs">
+                <div class="flex justify-between font-body-sm text-body-sm">
+                    <span class="text-on-surface-variant">Accounts:</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-on-surface' if banks.chile.status == 'active' else 'text-on-surface-variant' }}">
+                        {{ "{:,}".format(banks.chile.accounts) }}
+                    </span>
+                </div>
+                <div class="flex justify-between font-body-sm text-body-sm">
+                    <span class="text-on-surface-variant">Vol (24h):</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-on-surface' if banks.chile.status == 'active' else 'text-on-surface-variant' }}">
+                        {{ banks.chile.volume if banks.chile.status == 'active' else '--' }}
+                    </span>
+                </div>
+                <div class="flex justify-between font-body-sm text-body-sm pt-sm border-t border-surface-container-highest">
+                    <span class="text-on-surface-variant">Last Sync:</span>
+                    <span class="font-mono-sm text-mono-sm {{ 'text-secondary' if banks.chile.sync_status == 'recent' else 'text-error' }}">
+                        {{ banks.chile.last_sync }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leyenda de estado -->
+    <div class="absolute bottom-md left-md bg-surface border border-outline-variant rounded-lg p-sm flex gap-md shadow-sm">
+        <div class="flex items-center gap-xs">
+            <span class="w-3 h-3 rounded-full bg-secondary block"></span>
+            <span class="font-label-md text-label-md text-on-surface-variant">Active Connection</span>
+        </div>
+        <div class="flex items-center gap-xs">
+            <span class="w-3 h-3 rounded-full bg-outline block"></span>
+            <span class="font-label-md text-label-md text-on-surface-variant">Inactive/Reconnecting</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
