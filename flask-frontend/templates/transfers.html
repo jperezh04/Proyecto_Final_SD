@@ -21,14 +21,14 @@
                 <!-- Toggle: Local / Interbancaria -->
                 <div class="flex items-center p-1 bg-surface-container-highest rounded-lg w-fit border border-outline-variant/50">
                     <label class="cursor-pointer">
-                        <input checked class="peer sr-only" name="transfer_type" type="radio" value="local" onchange="updateTransferType()" aria-label="Local Transfer" />
+                        <input checked class="peer sr-only" name="transfer_type" type="radio" value="local" onchange="updateTransferType()"/>
                         <div class="px-4 py-2 rounded-md font-label text-sm text-on-surface-variant peer-checked:bg-surface peer-checked:text-primary peer-checked:shadow-sm peer-checked:border peer-checked:border-outline-variant/30 transition-all flex items-center gap-2">
                             <span class="material-symbols-outlined text-[16px]">account_balance_wallet</span>
                             Local Transfer
                         </div>
                     </label>
                     <label class="cursor-pointer">
-                        <input class="peer sr-only" name="transfer_type" type="radio" value="interbank" onchange="updateTransferType()" aria-label="Interbank Transfer" />
+                        <input class="peer sr-only" name="transfer_type" type="radio" value="interbank" onchange="updateTransferType()"/>
                         <div class="px-4 py-2 rounded-md font-label text-sm text-on-surface-variant peer-checked:bg-surface peer-checked:text-primary peer-checked:shadow-sm peer-checked:border peer-checked:border-outline-variant/30 transition-all flex items-center gap-2">
                             <span class="material-symbols-outlined text-[16px]">language</span>
                             Interbank Transfer
@@ -47,7 +47,7 @@
                     <div class="space-y-4 bg-surface-container-high p-4 rounded-lg border border-outline-variant/50 relative z-0">
                         <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Source</h3>
                         <div class="space-y-2">
-                            <label for="sourceBank" class="block font-label text-sm text-on-surface">Source Bank</label>
+                            <label class="block font-label text-sm text-on-surface">Source Bank</label>
                             <div class="relative">
                                 <select class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none" id="sourceBank">
                                     {% for bank in banks %}
@@ -58,7 +58,7 @@
                             </div>
                         </div>
                         <div class="space-y-2">
-                            <label for="sourceAccount" class="block font-label text-sm text-on-surface">Source Account</label>
+                            <label class="block font-label text-sm text-on-surface">Source Account</label>
                             <select class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none" id="sourceAccount">
                                 {% for account in user_accounts %}
                                 <option value="{{ account.number }}">{{ account.number }} ({{ account.bank }})</option>
@@ -71,7 +71,7 @@
                     <div class="space-y-4 bg-surface-container-high p-4 rounded-lg border border-outline-variant/50 relative z-0">
                         <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Destination</h3>
                         <div class="space-y-2">
-                            <label for="destBank" class="block font-label text-sm text-on-surface">Destination Bank</label>
+                            <label class="block font-label text-sm text-on-surface">Destination Bank</label>
                             <div class="relative">
                                 <select class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none" id="destBank">
                                     <option value="">Select Bank...</option>
@@ -83,8 +83,8 @@
                             </div>
                         </div>
                         <div class="space-y-2">
-                            <label for="destAccount" class="block font-label text-sm text-on-surface">Destination Account</label>
-                            <input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary" id="destAccount" name="destAccount" placeholder="Enter account number" type="text" aria-required="true"/>
+                            <label class="block font-label text-sm text-on-surface">Destination Account</label>
+                            <input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary" id="destAccount" placeholder="Enter account number" type="text"/>
                         </div>
                     </div>
                 </div>
@@ -92,18 +92,18 @@
                 <!-- Monto y descripción -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
-                        <label for="amount" class="block font-label text-sm text-on-surface">Amount</label>
+                        <label class="block font-label text-sm text-on-surface">Amount</label>
                         <div class="relative flex items-center">
                             <span class="absolute left-4 font-body text-lg text-on-surface-variant">$</span>
-                            <input class="w-full bg-surface border border-outline-variant rounded-lg pl-8 pr-4 py-2 font-body text-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary" id="amount" name="amount" placeholder="0.00" type="number" step="0.01" min="0.01" aria-required="true"/>
+                            <input class="w-full bg-surface border border-outline-variant rounded-lg pl-8 pr-4 py-2 font-body text-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary" id="amount" placeholder="0.00" type="number" step="0.01" min="0.01"/>
                             <div class="absolute right-4 flex items-center gap-1">
                                 <span class="font-label text-sm text-on-surface-variant">USD</span>
                             </div>
                         </div>
                     </div>
                     <div class="space-y-2">
-                        <label for="description" class="block font-label text-sm text-on-surface">Description (Reference)</label>
-                        <input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary h-[44px]" id="description" name="description" placeholder="e.g., Invoice #INV-2023-01" type="text"/>
+                        <label class="block font-label text-sm text-on-surface">Description (Reference)</label>
+                        <input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary h-[44px]" id="description" placeholder="e.g., Invoice #INV-2023-01" type="text"/>
                     </div>
                 </div>
 
@@ -127,7 +127,7 @@
                 <span class="px-2 py-1 bg-tertiary-container/20 border border-tertiary-container/30 rounded text-tertiary font-body text-[10px] tracking-wider uppercase">2PC Protocol</span>
             </div>
             
-            <p class="font-body text-sm text-on-surface-variant mb-8 relative z-10" id="twopcStatus" role="status" aria-live="polite">Distributed transaction monitoring. Awaiting initiation.</p>
+            <p class="font-body text-sm text-on-surface-variant mb-8 relative z-10" id="twopcStatus">Distributed transaction monitoring. Awaiting initiation.</p>
             
             <div class="flex-1 relative z-10">
                 <div class="absolute left-[15px] top-4 bottom-4 w-[2px] bg-outline-variant"></div>
@@ -150,7 +150,7 @@
                     <p class="font-body text-[11px] text-on-surface-variant leading-relaxed mb-2">
                         Applying ledger updates permanently. If consensus fails, protocol triggers <span class="text-error font-semibold">ROLLBACK</span>.
                     </p>
-                    <div class="mt-2 bg-surface-container-lowest border border-outline-variant rounded-md p-2 font-body text-[10px] text-on-surface-variant" id="twopcLog" role="log" aria-live="polite">
+                    <div class="mt-2 bg-surface-container-lowest border border-outline-variant rounded-md p-2 font-body text-[10px] text-on-surface-variant" id="twopcLog">
                         &gt; _ awaiting instruction...
                     </div>
                 </div>
@@ -191,39 +191,56 @@
 
     function handleTransfer(event) {
         event.preventDefault();
-        const amount = document.getElementById('amount').value;
+        const type = document.querySelector('input[name="transfer_type"]:checked').value;
+        const sourceBank = document.getElementById('sourceBank').value;
+        const sourceAccount = document.getElementById('sourceAccount').value;
+        const destBank = document.getElementById('destBank').value;
         const destAccount = document.getElementById('destAccount').value;
+        const amount = document.getElementById('amount').value;
+        const description = document.getElementById('description').value;
+
         if (!amount || amount <= 0) { alert('Please enter a valid amount.'); return; }
         if (!destAccount) { alert('Please enter a destination account.'); return; }
-        simulate2PC();
-    }
 
-    function simulate2PC() {
-        const log = document.getElementById('twopcLog');
-        const status = document.getElementById('twopcStatus');
-        const phase1Inner = document.getElementById('phase1Inner');
-        const phase2Inner = document.getElementById('phase2Inner');
+        // Mostrar en el panel 2PC que se está iniciando
+        document.getElementById('twopcStatus').textContent = 'Iniciando 2PC...';
+        document.getElementById('twopcLog').innerHTML = '&gt; Enviando PREPARE...';
 
-        status.textContent = 'Phase 1: PREPARE in progress...';
-        log.innerHTML = '&gt; [PREPARE] Locking resources...<br>';
-        setTimeout(() => { phase1Inner.style.background = '#f59e0b'; log.innerHTML += '&gt; [PREPARE] Checking balance...<br>'; }, 500);
-        setTimeout(() => { log.innerHTML += '&gt; [PREPARE] Sending prepare to participant...<br>'; }, 1000);
-        setTimeout(() => {
-            phase1Inner.style.background = '#10b981';
-            log.innerHTML += '&gt; [PREPARE] All nodes VOTE_COMMIT. Phase 1 completed.<br>';
-            status.textContent = 'Phase 1 completed. Moving to COMMIT...';
-            setTimeout(() => {
-                phase2Inner.style.background = '#f59e0b';
-                log.innerHTML += '&gt; [COMMIT] Broadcasting global commit...<br>';
-                status.textContent = 'Phase 2: COMMIT in progress...';
-            }, 500);
-            setTimeout(() => {
+        fetch('/api/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_bank: sourceBank,
+                source_account: sourceAccount,
+                dest_bank: destBank,
+                dest_account: destAccount,
+                amount: amount,
+                description: description
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const log = document.getElementById('twopcLog');
+            const status = document.getElementById('twopcStatus');
+            const phase1Inner = document.getElementById('phase1Inner');
+            const phase2Inner = document.getElementById('phase2Inner');
+
+            if (data.success) {
+                phase1Inner.style.background = '#10b981';
                 phase2Inner.style.background = '#10b981';
-                log.innerHTML += '&gt; [COMMIT] Transaction finalized.<br>';
-                log.innerHTML += '&gt; <span style="color:#10b981;">SUCCESS</span> - Transfer completed.<br>';
-                status.textContent = 'Transaction committed successfully.';
-            }, 1000);
-        }, 1500);
+                log.innerHTML += '&gt; [COMMIT] ' + data.message + '<br>';
+                status.textContent = 'Transacción completada: ' + data.tx_id;
+            } else {
+                phase1Inner.style.background = '#ef4444';
+                phase2Inner.style.background = '#ef4444';
+                log.innerHTML += '&gt; [ABORT] ' + data.message + '<br>';
+                status.textContent = 'Transacción fallida';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('twopcStatus').textContent = 'Error de conexión';
+        });
     }
 
     document.addEventListener('DOMContentLoaded', updateTransferType);

@@ -3,8 +3,10 @@ import os
 import time
 import grpc
 
-from bank_client import get_all_accounts_for_user, BANKS, get_stub, bank_pb2
+from bank_client import get_all_accounts_for_user, BANKS, get_stub
+import bank_pb2
 from flask import Flask, render_template, session, redirect, url_for, request
+from two_phase_commit import execute_interbank_transfer
 
 from dotenv import load_dotenv
 from datetime import datetime 
@@ -12,6 +14,7 @@ from datetime import datetime
 
 load_dotenv()  # Carga el archivo .env
 
+global transactions_today_count
 transactions_today_count = 0
 
 app = Flask(__name__)
@@ -443,5 +446,41 @@ def get_user():
         'role': 'Institutional Node #12',
         'avatar_url': 'https://ui-avatars.com/api/?name=Admin&background=316bf3&color=fff'
     }
+    
+@app.route('/api/transfer', methods=['POST'])
+def api_transfer():
+    data = request.get_json()
+    source_bank = data['source_bank']
+    source_account = data['source_account']
+    dest_bank = data['dest_bank']
+    dest_account = data['dest_account']
+    amount = float(data['amount'])
+
+    if source_bank == dest_bank:
+        # Transferencia local (usa el método existente)
+        stub = get_stub(source_bank)
+        resp = stub.TransferLocal(bank_pb2.TransferRequest(
+            source_account=source_account,
+            dest_account=dest_account,
+            amount=amount,
+            description="Local transfer from frontend"
+        ))
+        if resp.success:
+            global transactions_today_count
+            transactions_today_count += 1
+            return {'success': True, 'message': resp.message, 'tx_id': resp.transaction_id}
+        else:
+            return {'success': False, 'message': resp.message}
+    else:
+        # Transferencia interbancaria con 2PC
+        success, message, tx_id = execute_interbank_transfer(
+            source_bank, source_account, dest_bank, dest_account, amount
+        )
+        if success:
+            transactions_today_count
+            transactions_today_count += 1
+        return {'success': success, 'message': message, 'tx_id': tx_id}
+    
 if __name__ == '__main__':
     app.run(debug=True)
+    
