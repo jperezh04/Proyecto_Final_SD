@@ -5,6 +5,17 @@ let coordinatorData = window.__INITIAL_COORDINATOR__ || null;
 let activeNodeId = null;
 let topoResizeObserver = null;
 
+function traducirEstado(state) {
+    const estados = {
+        LEADER: 'LÍDER',
+        FOLLOWER: 'SEGUIDOR',
+        DISCONNECTED: 'DESCONECTADO',
+        STABLE: 'ESTABLE',
+        ELECTION: 'ELECCIÓN'
+    };
+    return estados[state] || state;
+}
+
 // ── Bootstrap ───────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     if (nodesData.length === 0) {
@@ -21,8 +32,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await refreshTimeline();
     }, 4000);
 
-    document.getElementById('forceElectionBtn').addEventListener('click', forceGlobalElection);
-    document.getElementById('exportLogsBtn').addEventListener('click', exportLogs);
+    const forceElectionBtn = document.getElementById('forceElectionBtn');
+    if (forceElectionBtn) forceElectionBtn.addEventListener('click', forceGlobalElection);
+
+    const exportLogsBtn = document.getElementById('exportLogsBtn');
+    if (exportLogsBtn) exportLogsBtn.addEventListener('click', exportLogs);
     initActionMenu();
     initTopologyResize();
 });
@@ -59,7 +73,7 @@ function renderCoordinator() {
     if (nameEl) nameEl.textContent = coordinatorData.name;
     const isStable = coordinatorData.state === 'STABLE';
     if (ind) ind.className = `w-3 h-3 rounded-full animate-pulse ${isStable ? 'bg-tertiary' : 'bg-[#f59e0b]'}`;
-    if (txt) txt.textContent = coordinatorData.state;
+    if (txt) txt.textContent = traducirEstado(coordinatorData.state);
 }
 
 // ── Node Registry (console) ───────────────────────────────────────────────────
@@ -70,7 +84,7 @@ function renderTable() {
     tbody.innerHTML = nodesData.map(node => {
         const isDead   = node.state === 'DISCONNECTED';
         const isPaused = node.paused === true;
-        const stateLabel = isPaused && node.state !== 'LEADER' ? 'PAUSED' : node.state;
+        const stateLabel = isPaused && node.state !== 'LEADER' ? 'PAUSADO' : traducirEstado(node.state);
 
         const badgeClass = node.state === 'LEADER'
             ? 'bg-primary/10 text-primary'
@@ -80,7 +94,7 @@ function renderTable() {
                     ? 'bg-[#f59e0b]/10 text-[#f59e0b]'
                     : 'bg-surface-container-high text-on-surface-variant';
 
-        const statusText  = isDead ? 'offline' : isPaused ? 'paused' : 'online';
+        const statusText  = isDead ? 'desconectado' : isPaused ? 'pausado' : 'en línea';
         const statusColor = isDead ? 'text-error' : isPaused ? 'text-[#f59e0b]' : 'text-tertiary';
 
         return `
@@ -96,7 +110,7 @@ function renderTable() {
             <td class="py-4 px-5 ${statusColor} font-medium text-sm">${statusText}</td>
             <td class="py-4 px-5 text-right">
                 <button class="node-actions-btn p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
-                        data-node-id="${node.name}" aria-label="Node actions">
+                        data-node-id="${node.name}" aria-label="Acciones del nodo">
                     <span class="material-symbols-outlined text-[18px]">more_vert</span>
                 </button>
             </td>
@@ -105,7 +119,7 @@ function renderTable() {
 
     const active = nodesData.filter(n => n.state !== 'DISCONNECTED' && !n.paused).length;
     const countEl = document.getElementById('activeNodesCount');
-    if (countEl) countEl.textContent = `${active} Active Nodes`;
+    if (countEl) countEl.textContent = `${active} nodos activos`;
 }
 
 // ── Action menu ───────────────────────────────────────────────────────────────
@@ -122,7 +136,7 @@ function initActionMenu() {
         const node = nodesData.find(n => n.name === activeNodeId);
         const toggleBtn = menu.querySelector('[data-action="disconnect"]');
         if (node && toggleBtn) {
-            toggleBtn.textContent = node.paused ? '▶ Resume Node' : '⏸ Pause Node';
+            toggleBtn.textContent = node.paused ? '▶ Reanudar nodo' : '⏸ Pausar nodo';
         }
 
         const rect  = btn.getBoundingClientRect();
@@ -153,13 +167,13 @@ async function handleNodeAction(action, nodeId) {
         case 'details': {
             const node = nodesData.find(n => n.name === nodeId);
             if (node) {
-                const status = node.paused ? 'PAUSED' : node.state;
-                showToast(`${node.name}: ${status} — priority ${node.priority}`, 5000, 'info');
+                const status = node.paused ? 'PAUSADO' : traducirEstado(node.state);
+                showToast(`${node.name}: ${status} — prioridad ${node.priority}`, 5000, 'info');
             }
             break;
         }
         case 'force-election': {
-            showToast(`Forcing election on ${nodeId}…`, 1500, 'info');
+            showToast(`Forzando elección en ${nodeId}…`, 1500, 'info');
             try {
                 const res  = await fetch('/api/force-election', {
                     method: 'POST',
@@ -168,19 +182,19 @@ async function handleNodeAction(action, nodeId) {
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
-                    showToast(`Election triggered on ${nodeId}`, 2500, 'success');
+                    showToast(`Elección iniciada en ${nodeId}`, 2500, 'success');
                     // Refresh multiple times to catch the election settling
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 1500);
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 3500);
                 } else {
-                    showToast(data.error || 'Force election failed', 3000, 'error');
+                    showToast(data.error || 'No se pudo forzar la elección', 3000, 'error');
                 }
-            } catch { showToast('Network error', 3000, 'error'); }
+            } catch { showToast('Error de conexión', 3000, 'error'); }
             break;
         }
         case 'disconnect': {
             const node = nodesData.find(n => n.name === nodeId);
-            const verb = node?.paused ? 'Resuming' : 'Pausing';
+            const verb = node?.paused ? 'Reanudando' : 'Pausando';
             const wasLeader = node?.state === 'LEADER';
             showToast(`${verb} ${nodeId}…`, 1200, 'info');
             try {
@@ -195,27 +209,27 @@ async function handleNodeAction(action, nodeId) {
                         drawTopology();
                     }
                     if (data.paused && wasLeader) {
-                        showToast(`${nodeId} paused — bully election starting…`, 3000, 'info');
+                        showToast(`${nodeId} pausado — iniciando elección Bully…`, 3000, 'info');
                     } else if (!data.paused) {
-                        showToast(`${nodeId} resumed — re-joining cluster via bully…`, 3000, 'info');
+                        showToast(`${nodeId} reanudado — volviendo al clúster…`, 3000, 'info');
                     } else {
-                        showToast(data.message || `Node toggled`, 2500, 'success');
+                        showToast(data.message || `Estado del nodo actualizado`, 2500, 'success');
                     }
                     // Refresh a few times to catch the election settling (bully takes a few seconds)
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 1200);
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 3000);
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 6000);
                 } else {
-                    showToast(data.error || 'Toggle failed', 3000, 'error');
+                    showToast(data.error || 'No se pudo cambiar el estado del nodo', 3000, 'error');
                 }
-            } catch { showToast('Network error', 3000, 'error'); }
+            } catch { showToast('Error de conexión', 3000, 'error'); }
             break;
         }
         case 'refresh': {
-            showToast('Refreshing…', 1200, 'info');
+            showToast('Actualizando…', 1200, 'info');
             await refreshData();
             await refreshTimeline();
-            showToast('Node info refreshed', 2000, 'success');
+            showToast('Información del nodo actualizada', 2000, 'success');
             break;
         }
     }
@@ -223,7 +237,7 @@ async function handleNodeAction(action, nodeId) {
 
 // ── Global election ───────────────────────────────────────────────────────────
 async function forceGlobalElection() {
-    showToast('Sending global election signal…', 1500, 'info');
+    showToast('Enviando señal de elección global…', 1500, 'info');
     try {
         const res  = await fetch('/api/force-election', {
             method: 'POST',
@@ -232,13 +246,13 @@ async function forceGlobalElection() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-            showToast('Bully election signal sent to all nodes', 2500, 'success');
+            showToast('Señal de elección Bully enviada a los nodos', 2500, 'success');
             setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 1800);
             setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 4000);
         } else {
-            showToast(data.error || 'Request failed', 3000, 'error');
+            showToast(data.error || 'Solicitud fallida', 3000, 'error');
         }
-    } catch { showToast('Network error', 3000, 'error'); }
+    } catch { showToast('Error de conexión', 3000, 'error'); }
 }
 
 // ── Export logs ───────────────────────────────────────────────────────────────
@@ -252,11 +266,11 @@ async function exportLogs() {
             a.href = url; a.download = 'coordination-logs.txt';
             document.body.appendChild(a); a.click(); a.remove();
             URL.revokeObjectURL(url);
-            showToast('Logs exported', 2200, 'success');
+            showToast('Registros exportados', 2200, 'success');
         } else {
-            showToast('No logs available', 3000, 'info');
+            showToast('No hay registros disponibles', 3000, 'info');
         }
-    } catch { showToast('Network error', 3000, 'error'); }
+    } catch { showToast('Error de conexión', 3000, 'error'); }
 }
 
 // ── Event Timeline ────────────────────────────────────────────────────────────
@@ -269,8 +283,8 @@ async function refreshTimeline() {
         if (!el) return;
 
         if (!events || events.length === 0) {
-            el.innerHTML = `<p class="text-on-surface-variant text-sm text-center py-8">No events recorded yet.<br>
-                <span class="text-xs opacity-60">Events appear after node actions.</span></p>`;
+            el.innerHTML = `<p class="text-on-surface-variant text-sm text-center py-8">Aún no hay eventos registrados.<br>
+                <span class="text-xs opacity-60">Los eventos aparecerán después de usar las acciones de los nodos.</span></p>`;
             return;
         }
 
@@ -323,7 +337,7 @@ function drawTopology() {
     if (!nodesData || nodesData.length === 0) {
         ctx.fillStyle = '#71717a'; ctx.font = '14px Geist, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('No nodes available', W / 2, H / 2);
+        ctx.fillText('No hay nodos disponibles', W / 2, H / 2);
         return;
     }
 
@@ -403,7 +417,7 @@ function drawTopology() {
         ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(node.short_name, pos.x, pos.y);
 
-        const stateLabel = isPaused && !isLeader ? 'PAUSED' : node.state;
+        const stateLabel = isPaused && !isLeader ? 'PAUSADO' : traducirEstado(node.state);
         ctx.fillStyle    = isLeader ? '#c4b5fd' : isDead ? '#ef4444' : isPaused ? '#fbbf24' : '#71717a';
         ctx.font         = `${isLeader ? 10 : 9}px Geist, system-ui, sans-serif`;
         ctx.textBaseline = 'top';

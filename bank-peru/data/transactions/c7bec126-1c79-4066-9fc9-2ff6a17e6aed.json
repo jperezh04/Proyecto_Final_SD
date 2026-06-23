@@ -1,0 +1,12 @@
+{
+  "transaction_id": "c7bec126-1c79-4066-9fc9-2ff6a17e6aed",
+  "timestamp": "2026-06-23T19:16:55.398286+00:00",
+  "type": "transfer_local",
+  "source_account": "PE002",
+  "dest_account": "PE003",
+  "amount": 10.0,
+  "currency": "USD",
+  "description": "Transferencia desde el frontend",
+  "status": "successful",
+  "bank_id": "peru"
+}
