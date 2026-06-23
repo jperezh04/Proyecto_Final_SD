@@ -232,7 +232,7 @@
                         <div class="p-4 rounded-xl bg-primary/10 border border-primary/20">
                             <p class="font-label text-xs uppercase tracking-wider text-primary mb-1">Monto a enviar</p>
                             <p id="previewMonto" class="font-headline text-2xl text-primary font-semibold">MULTI 0.00</p>
-                            <p id="previewDescripción" class="font-body text-xs text-on-surface-variant mt-1">Sin descripción</p>
+                            <p id="previewDescripcion" class="font-body text-xs text-on-surface-variant mt-1">Sin descripción</p>
                         </div>
                     </div>
                 </div>
@@ -353,7 +353,7 @@
         document.getElementById('previewDestino').textContent = destAccount || '—';
         document.getElementById('previewDestBanco').textContent = `Banco: ${destBanco ? (bankNames[destBanco] || destBanco) : '—'}`;
         document.getElementById('previewMonto').textContent = formatMonto(amount);
-        document.getElementById('previewDescripción').textContent = description || 'Sin descripción';
+        document.getElementById('previewDescripcion').textContent = description || 'Sin descripción';
     }
 
     function resetForm() {
@@ -447,7 +447,7 @@
             setStepEstado('phaseValidate', 'success');
             setStepEstado('phase1', 'active');
             document.getElementById('twopcEstado').textContent = 'Enviando solicitud de preparación...';
-            document.getElementById('twopcLog').innerHTML += '&gt; Fase 1: solicitando PREPARE a los nodos...<br>';
+            document.getElementById('twopcLog').innerHTML += '&gt; Fase 1: solicitando PREPARE/preparación a los nodos...<br>';
 
             const response = await fetch('/api/transfer', {
                 method: 'POST',
@@ -468,14 +468,14 @@
             if (response.ok && data.success) {
                 setStepEstado('phase1', 'success');
                 setStepEstado('phase2', 'success');
-                log.innerHTML += '&gt; Fase 2: COMMIT aplicado correctamente.<br>';
+                log.innerHTML += '&gt; Fase 2: COMMIT/confirmación aplicado correctamente.<br>';
                 log.innerHTML += '&gt; ID de transacción: ' + (data.tx_id || '—') + '<br>';
                 status.textContent = 'Transferencia completada correctamente.';
                 showToast('Movimiento realizado correctamente.', 3500, 'success');
             } else {
                 setStepEstado('phase1', 'error');
                 setStepEstado('phase2', 'error');
-                log.innerHTML += '&gt; ABORT: ' + (data.message || 'La transferencia fue rechazada.') + '<br>';
+                log.innerHTML += '&gt; ABORT/reversión: ' + (data.message || 'La transferencia fue rechazada.') + '<br>';
                 status.textContent = 'Transferencia rechazada.';
                 showToast(data.message || 'No se pudo realizar la transferencia.', 4500, 'error');
             }

@@ -63,7 +63,7 @@
                     <span class="text-on-surface">{{ banks.peru.volume if banks.peru.status == 'active' else '--' }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm pt-2 border-t border-outline-variant">
-                    <span class="text-on-surface-variant">Última sync.:</span>
+                    <span class="text-on-surface-variant">Última sincronización:</span>
                     <span class="{{ 'text-primary' if banks.peru.sync_status == 'recent' else 'text-error' }}">{{ banks.peru.last_sync }}</span>
                 </div>
             </div>
@@ -102,7 +102,7 @@
                     <span class="text-on-surface">{{ banks.colombia.volume if banks.colombia.status == 'active' else '--' }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm pt-2 border-t border-outline-variant">
-                    <span class="text-on-surface-variant">Última sync.:</span>
+                    <span class="text-on-surface-variant">Última sincronización:</span>
                     <span class="{{ 'text-primary' if banks.colombia.sync_status == 'recent' else 'text-error' }}">{{ banks.colombia.last_sync }}</span>
                 </div>
             </div>
@@ -141,7 +141,7 @@
                     <span class="text-on-surface">{{ banks.chile.volume if banks.chile.status == 'active' else '--' }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm pt-2 border-t border-outline-variant">
-                    <span class="text-on-surface-variant">Última sync.:</span>
+                    <span class="text-on-surface-variant">Última sincronización:</span>
                     <span class="{{ 'text-primary' if banks.chile.sync_status == 'recent' else 'text-error' }}">{{ banks.chile.last_sync }}</span>
                 </div>
             </div>

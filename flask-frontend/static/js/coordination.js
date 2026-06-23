@@ -1,4 +1,4 @@
-// coordination.js — bully-aware, fully functional
+// coordination.js — algoritmo Bully con acciones funcionales
 
 let nodesData = window.__INITIAL_NODES__ || [];
 let coordinatorData = window.__INITIAL_COORDINATOR__ || null;
@@ -64,7 +64,7 @@ async function refreshData() {
     }
 }
 
-// ── Coordinator card ──────────────────────────────────────────────────────────
+// ── Tarjeta del coordinador ──────────────────────────────────────────────────────────
 function renderCoordinator() {
     if (!coordinatorData) return;
     const nameEl = document.getElementById('coordinatorName');
@@ -76,7 +76,7 @@ function renderCoordinator() {
     if (txt) txt.textContent = traducirEstado(coordinatorData.state);
 }
 
-// ── Node Registry (console) ───────────────────────────────────────────────────
+// ── Registro de nodos ───────────────────────────────────────────────────
 function renderTable() {
     const tbody = document.getElementById('nodeTableBody');
     if (!tbody) return;
@@ -122,7 +122,7 @@ function renderTable() {
     if (countEl) countEl.textContent = `${active} nodos activos`;
 }
 
-// ── Action menu ───────────────────────────────────────────────────────────────
+// ── Menú de acciones ───────────────────────────────────────────────────────────────
 function initActionMenu() {
     const menu = document.getElementById('nodeActionMenu');
     if (!menu) return;
@@ -183,7 +183,7 @@ async function handleNodeAction(action, nodeId) {
                 const data = await res.json();
                 if (res.ok && data.success) {
                     showToast(`Elección iniciada en ${nodeId}`, 2500, 'success');
-                    // Refresh multiple times to catch the election settling
+                    // Refrescamos varias veces para ver cómo termina la elección
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 1500);
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 3500);
                 } else {
@@ -215,7 +215,7 @@ async function handleNodeAction(action, nodeId) {
                     } else {
                         showToast(data.message || `Estado del nodo actualizado`, 2500, 'success');
                     }
-                    // Refresh a few times to catch the election settling (bully takes a few seconds)
+                    // Refrescamos varias veces porque Bully puede tardar unos segundos
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 1200);
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 3000);
                     setTimeout(async () => { await refreshData(); await refreshTimeline(); }, 6000);
@@ -235,7 +235,7 @@ async function handleNodeAction(action, nodeId) {
     }
 }
 
-// ── Global election ───────────────────────────────────────────────────────────
+// ── Elección global ───────────────────────────────────────────────────────────
 async function forceGlobalElection() {
     showToast('Enviando señal de elección global…', 1500, 'info');
     try {
@@ -255,7 +255,7 @@ async function forceGlobalElection() {
     } catch { showToast('Error de conexión', 3000, 'error'); }
 }
 
-// ── Export logs ───────────────────────────────────────────────────────────────
+// ── Exportar registros ───────────────────────────────────────────────────────────────
 async function exportLogs() {
     try {
         const res = await fetch('/api/export-logs');
@@ -273,7 +273,7 @@ async function exportLogs() {
     } catch { showToast('Error de conexión', 3000, 'error'); }
 }
 
-// ── Event Timeline ────────────────────────────────────────────────────────────
+// ── Línea de eventos ────────────────────────────────────────────────────────────
 async function refreshTimeline() {
     try {
         const resp = await fetch('/api/events');
@@ -318,7 +318,7 @@ async function refreshTimeline() {
     }
 }
 
-// ── Topology canvas ───────────────────────────────────────────────────────────
+// ── Canvas de topología ───────────────────────────────────────────────────────────
 function drawTopology() {
     const canvas    = document.getElementById('topologyCanvas');
     const container = document.getElementById('topologyContainer');
@@ -334,8 +334,20 @@ function drawTopology() {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
 
+    const styles = getComputedStyle(document.documentElement);
+    const css = (name, fallback) => (styles.getPropertyValue(name).trim() || fallback);
+    const isDark = document.documentElement.classList.contains('dark');
+    const colorPrimary = css('--color-primary', '#7c3aed');
+    const colorSurfaceHigh = css('--color-surface-container-high', isDark ? '#18181b' : '#eef4ff');
+    const colorSurfaceHighest = css('--color-surface-container-highest', isDark ? '#1e1e22' : '#e0ecff');
+    const colorOutline = css('--color-outline', isDark ? '#52525b' : '#94a3b8');
+    const colorText = css('--color-on-surface', isDark ? '#fafafa' : '#0f172a');
+    const colorMuted = css('--color-on-surface-variant', isDark ? '#a1a1aa' : '#475569');
+    const colorError = css('--color-error', '#ef4444');
+    const colorWarning = '#f59e0b';
+
     if (!nodesData || nodesData.length === 0) {
-        ctx.fillStyle = '#71717a'; ctx.font = '14px Geist, sans-serif';
+        ctx.fillStyle = colorMuted; ctx.font = '14px Geist, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('No hay nodos disponibles', W / 2, H / 2);
         return;
@@ -356,7 +368,7 @@ function drawTopology() {
         positions[n.name] = {x: cx + orbitR * Math.cos(angle), y: cy + orbitR * Math.sin(angle)};
     });
 
-    // Edges: leader → followers
+    // Conexiones: líder → seguidores
     others.forEach(n => {
         const from   = leader ? positions[leader.name] : {x: cx, y: cy};
         const to     = positions[n.name];
@@ -364,7 +376,7 @@ function drawTopology() {
         const isPaused = n.paused === true;
         ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
         ctx.lineWidth   = isDead || isPaused ? 1 : 1.5;
-        ctx.strokeStyle = isDead ? '#ef4444' : isPaused ? '#f59e0b' : '#52525b';
+        ctx.strokeStyle = isDead ? colorError : isPaused ? colorWarning : colorOutline;
         ctx.setLineDash(isDead || isPaused ? [4, 4] : [5, 3]);
         ctx.stroke(); ctx.setLineDash([]);
 
@@ -378,16 +390,16 @@ function drawTopology() {
             ctx.lineTo(mx - aL*nx + aL*0.4*(-ny), my - aL*ny + aL*0.4*nx);
             ctx.moveTo(mx, my);
             ctx.lineTo(mx - aL*nx - aL*0.4*(-ny), my - aL*ny - aL*0.4*nx);
-            ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.strokeStyle = colorPrimary; ctx.lineWidth = 1.5; ctx.stroke();
         }
     });
 
-    // Peer edges
+    // Conexiones entre seguidores
     for (let i = 0; i < others.length; i++) {
         for (let j = i + 1; j < others.length; j++) {
             const a = positions[others[i].name], b = positions[others[j].name];
             ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = '#3f3f46'; ctx.lineWidth = 1;
+            ctx.strokeStyle = colorOutline; ctx.lineWidth = 1;
             ctx.setLineDash([2, 6]); ctx.stroke(); ctx.setLineDash([]);
         }
     }
@@ -400,31 +412,31 @@ function drawTopology() {
 
         if (isLeader) {
             const grd = ctx.createRadialGradient(pos.x, pos.y, r*0.5, pos.x, pos.y, r*2);
-            grd.addColorStop(0, 'rgba(124,58,237,0.25)'); grd.addColorStop(1, 'rgba(124,58,237,0)');
+            grd.addColorStop(0, isDark ? 'rgba(124,58,237,0.25)' : 'rgba(37,99,235,0.20)'); grd.addColorStop(1, 'rgba(37,99,235,0)');
             ctx.beginPath(); ctx.arc(pos.x, pos.y, r*2, 0, 2*Math.PI);
             ctx.fillStyle = grd; ctx.fill();
         }
 
         ctx.beginPath(); ctx.arc(pos.x, pos.y, r, 0, 2*Math.PI);
-        ctx.fillStyle = isLeader ? '#5b21b6' : isDead ? '#1f1f1f' : isPaused ? '#292524' : '#27272a';
+        ctx.fillStyle = isLeader ? colorPrimary : isDead ? (isDark ? '#1f1f1f' : '#f1f5f9') : isPaused ? (isDark ? '#292524' : '#fff7ed') : colorSurfaceHigh;
         ctx.fill();
         ctx.lineWidth   = isLeader ? 3 : 2;
-        ctx.strokeStyle = isLeader ? '#a78bfa' : isDead ? '#ef4444' : isPaused ? '#f59e0b' : '#52525b';
+        ctx.strokeStyle = isLeader ? colorPrimary : isDead ? colorError : isPaused ? colorWarning : colorOutline;
         ctx.stroke();
 
-        ctx.fillStyle    = isDead ? '#52525b' : '#f4f4f5';
+        ctx.fillStyle    = isDead ? colorMuted : colorText;
         ctx.font         = `bold ${isLeader ? 15 : 13}px Geist, system-ui, sans-serif`;
         ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(node.short_name, pos.x, pos.y);
 
         const stateLabel = isPaused && !isLeader ? 'PAUSADO' : traducirEstado(node.state);
-        ctx.fillStyle    = isLeader ? '#c4b5fd' : isDead ? '#ef4444' : isPaused ? '#fbbf24' : '#71717a';
+        ctx.fillStyle    = isLeader ? colorPrimary : isDead ? colorError : isPaused ? colorWarning : colorMuted;
         ctx.font         = `${isLeader ? 10 : 9}px Geist, system-ui, sans-serif`;
         ctx.textBaseline = 'top';
         ctx.fillText(stateLabel, pos.x, pos.y + r + 5);
 
         if (isLeader) {
-            ctx.fillStyle = '#fbbf24'; ctx.font = '12px sans-serif';
+            ctx.fillStyle = colorWarning; ctx.font = '12px sans-serif';
             ctx.textBaseline = 'bottom';
             ctx.fillText('👑', pos.x, pos.y - r - 2);
         }
@@ -435,7 +447,7 @@ function drawTopology() {
     if (leader) drawNode(leader, true);
 }
 
-// ── Toast utility ─────────────────────────────────────────────────────────────
+// ── Utilidad de notificaciones ─────────────────────────────────────────────────────────────
 function showToast(message, duration = 3000, type = 'info') {
     if (window._showToast) { window._showToast(message, duration, type); return; }
     const existing = document.getElementById('_coord_toast');

@@ -288,7 +288,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                         f"Node {self.node_id} {estado} manually",
                         f"Manual override {'enabled' if self.manual_pause else 'disabled'}")
         print(f"[{self.node_id}] Manual pause: {self.manual_pause}")
-        return bank_pb2.NodeStatusResponse(success=True, message=f"Node {self.node_id} {estado}")
+        return bank_pb2.NodeStatusResponse(success=True, message=f"Nodo {self.node_id} {estado}")
 
     def _get_lock(self, account_id):
         with self.global_lock:
@@ -299,7 +299,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
     def _reject_if_paused(self, context):
         if self.manual_pause:
             context.set_code(grpc.StatusCode.UNAVAILABLE)
-            context.set_details("Node is paused")
+            context.set_details("Nodo pausado")
             return True
         return False
 
@@ -348,7 +348,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         account = load_account(request.account_id)
         if not account:
             context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details("Account not found")
+            context.set_details("Cuenta no encontrada")
             return bank_pb2.BalanceResponse()
         return bank_pb2.BalanceResponse(
             account_id=request.account_id,
@@ -358,14 +358,14 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
 
     def Deposit(self, request, context):
         if self._reject_if_paused(context):
-            return bank_pb2.TransactionResponse(success=False, message="Node is paused")
+            return bank_pb2.TransactionResponse(success=False, message="Nodo pausado")
         if request.amount <= 0:
-            return bank_pb2.TransactionResponse(success=False, message="Amount must be greater than zero")
+            return bank_pb2.TransactionResponse(success=False, message="El monto debe ser mayor que cero")
         lock = self._get_lock(request.account_id)
         with lock:
             account = load_account(request.account_id)
             if not account:
-                return bank_pb2.TransactionResponse(success=False, message="Account not found")
+                return bank_pb2.TransactionResponse(success=False, message="Cuenta no encontrada")
             account["balance"] += request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
@@ -378,20 +378,20 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             })
             self._log_event("transaction", "Deposit completed", f"{request.account_id} +{request.amount} {account.get('currency', '')}")
             tx_counter.labels(node=NODE_LABEL, type="deposit").inc()
-            return bank_pb2.TransactionResponse(success=True, message="Deposit successful", new_balance=account["balance"])
+            return bank_pb2.TransactionResponse(success=True, message="Depósito realizado correctamente", new_balance=account["balance"])
 
     def Withdraw(self, request, context):
         if self._reject_if_paused(context):
-            return bank_pb2.TransactionResponse(success=False, message="Node is paused")
+            return bank_pb2.TransactionResponse(success=False, message="Nodo pausado")
         if request.amount <= 0:
-            return bank_pb2.TransactionResponse(success=False, message="Amount must be greater than zero")
+            return bank_pb2.TransactionResponse(success=False, message="El monto debe ser mayor que cero")
         lock = self._get_lock(request.account_id)
         with lock:
             account = load_account(request.account_id)
             if not account:
-                return bank_pb2.TransactionResponse(success=False, message="Account not found")
+                return bank_pb2.TransactionResponse(success=False, message="Cuenta no encontrada")
             if account["balance"] < request.amount:
-                return bank_pb2.TransactionResponse(success=False, message="Insufficient funds")
+                return bank_pb2.TransactionResponse(success=False, message="Fondos insuficientes")
             account["balance"] -= request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
@@ -404,15 +404,15 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             })
             self._log_event("transaction", "Withdrawal completed", f"{request.account_id} -{request.amount} {account.get('currency', '')}")
             tx_counter.labels(node=NODE_LABEL, type="withdraw").inc()
-            return bank_pb2.TransactionResponse(success=True, message="Withdrawal successful", new_balance=account["balance"])
+            return bank_pb2.TransactionResponse(success=True, message="Retiro realizado correctamente", new_balance=account["balance"])
 
     def TransferLocal(self, request, context):
         if self._reject_if_paused(context):
-            return bank_pb2.TransferResponse(success=False, message="Node is paused")
+            return bank_pb2.TransferResponse(success=False, message="Nodo pausado")
         if request.amount <= 0:
-            return bank_pb2.TransferResponse(success=False, message="Amount must be greater than zero")
+            return bank_pb2.TransferResponse(success=False, message="El monto debe ser mayor que cero")
         if request.source_account == request.dest_account:
-            return bank_pb2.TransferResponse(success=False, message="Source and destination accounts must be different")
+            return bank_pb2.TransferResponse(success=False, message="La cuenta origen y destino deben ser distintas")
         ids = sorted([request.source_account, request.dest_account])
         lock1 = self._get_lock(ids[0])
         lock2 = self._get_lock(ids[1])
@@ -420,9 +420,9 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             src = load_account(request.source_account)
             dst = load_account(request.dest_account)
             if not src or not dst:
-                return bank_pb2.TransferResponse(success=False, message="Invalid accounts")
+                return bank_pb2.TransferResponse(success=False, message="Cuentas inválidas")
             if src["balance"] < request.amount:
-                return bank_pb2.TransferResponse(success=False, message="Insufficient funds")
+                return bank_pb2.TransferResponse(success=False, message="Fondos insuficientes")
             src["balance"] -= request.amount
             dst["balance"] += request.amount
             now = datetime.now(timezone.utc).isoformat()
@@ -440,7 +440,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             })
             self._log_event("transaction", "Local transfer completed", f"{request.source_account} -> {request.dest_account} ({request.amount} {src.get('currency', '')})")
             tx_counter.labels(node=NODE_LABEL, type="transfer_local").inc()
-            return bank_pb2.TransferResponse(success=True, message="Local transfer successful", transaction_id=tx_id)
+            return bank_pb2.TransferResponse(success=True, message="Transferencia local realizada correctamente", transaction_id=tx_id)
 
     def Prepare(self, request, context):
         start = time.time()
@@ -512,7 +512,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 "description": "Interbank transfer via 2PC",
                 "status": "successful", "bank_id": NODE_ID
             })
-            self._log_event("transaction", "2PC commit applied", f"{pending['op_type']} {pending['account_id']} ({pending['amount']} {account.get('currency', '')})")
+            self._log_event("transaction", "Confirmación 2PC aplicada", f"{pending['op_type']} {pending['account_id']} ({pending['amount']} {account.get('currency', '')})")
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)

@@ -83,7 +83,7 @@
         }
     </script>
 </head>
-<body class="bg-background min-h-screen flex flex-col justify-center items-center p-4 md:p-8">
+<body class="bg-background min-h-screen flex flex-col justify-center items-center p-4 md:p-8 text-on-background">
 
 <!-- Toggle de tema -->
 <div class="absolute top-4 right-4 flex items-center gap-2">
@@ -95,13 +95,13 @@
 </div>
 
 <main class="w-full max-w-md">
-    <div class="bg-surface-container border border-outline-variant rounded-xl shadow-sm p-8 flex flex-col gap-6">
+    <div class="bg-surface-container border border-outline-variant rounded-2xl shadow-sm p-8 flex flex-col gap-6">
         <div class="flex flex-col items-center text-center gap-3">
             <div class="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-container mb-2">
                 <span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">account_balance</span>
             </div>
             <h1 class="font-headline text-2xl font-semibold text-on-surface tracking-tight">Sistema Bancario Distribuido</h1>
-            <p class="font-body text-sm text-on-surface-variant">Secure Institutional Access</p>
+            <p class="font-body text-sm text-on-surface-variant">Acceso institucional seguro</p>
         </div>
 
         {% if error %}
@@ -116,7 +116,7 @@
                 <div class="relative">
                     <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">person</span>
                     <input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline rounded-lg font-body text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                           id="username" name="username" placeholder="Enter institutional ID" required type="text"/>
+                           id="username" name="username" placeholder="Ingresa tu usuario" required type="text"/>
                 </div>
             </div>
 
@@ -136,11 +136,11 @@
                     <input class="w-4 h-4 rounded border-outline text-primary focus:ring-primary bg-surface-container-lowest" type="checkbox" name="remember" value="1"/>
                     <span class="font-body text-sm text-on-surface-variant">Recordarme</span>
                 </label>
-                <a class="font-label text-sm text-primary hover:text-primary/80 transition-colors" href="#">Recover Access</a>
+                <a class="font-label text-sm text-primary hover:text-primary/80 transition-colors" href="#">Recuperar acceso</a>
             </div>
 
             <button class="mt-4 w-full py-3 bg-primary hover:bg-primary/90 text-on-primary font-label text-sm rounded-lg transition-colors flex justify-center items-center gap-2" type="submit">
-                Authenticate
+                Ingresar
                 <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
             </button>
         </form>

@@ -136,7 +136,7 @@
                     {% set heights = [2,4,6,3,5,2,7,4,2] %}
                     {% set ops = [0.4,0.6,0.8,0.4,0.6,0.4,1.0,0.6,0.4] %}
                     {% for i in range(9) %}
-                    <div style="height: {{ heights[i] * 4 }}px; flex:1; background-color: rgba(19,27,46,{{ ops[i] }}); border-radius:9999px;"></div>
+                    <div style="height: {{ heights[i] * 4 }}px; flex:1; background-color: var(--color-primary); opacity: {{ ops[i] }}; border-radius:9999px;"></div>
                     {% endfor %}
                 </div>
             </div>

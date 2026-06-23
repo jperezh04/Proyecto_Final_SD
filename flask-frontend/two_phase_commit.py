@@ -11,7 +11,7 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
     """
     tx_id = str(uuid.uuid4())
     if amount <= 0:
-        return False, "Amount must be greater than zero", tx_id
+        return False, "El monto debe ser mayor que cero", tx_id
     if source_bank == dest_bank or source_account == dest_account:
         return False, "Interbank transfer requires different banks and accounts", tx_id
     print(f"\n Iniciando 2PC {tx_id}: {source_account} ({source_bank}) -> {dest_account} ({dest_bank}) por {amount}")
@@ -53,7 +53,7 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
                 dst_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
             except Exception:
                 pass
-        return False, f"Prepare fallo: {e.code()}", tx_id
+        return False, f"Falló la fase de preparación: {e.code()}", tx_id
 
     # 3. Verificar votos
     if not (src_prep.vote and dst_prep.vote):
@@ -80,4 +80,4 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
             return False, "Fallo en la fase de commit", tx_id
     except Exception as e:
         print(f"Error en COMMIT: {e}")
-        return False, f"Error en commit: {e}", tx_id
+        return False, f"Error al confirmar la transacción: {e}", tx_id

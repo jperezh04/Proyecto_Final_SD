@@ -240,7 +240,7 @@ def history():
             'status': tx.get('status', 'desconocido')
         })
     banks = [{'name': name} for name in BANK_LABELS.values()]
-    filters = {'date_range': 'Real ledger'}
+    filters = {'date_range': 'Libro real'}
     user = get_user()
     return render_template('history.html', user=user, active_page='history',
                            transactions=transactions, banks=banks, filters=filters,
@@ -386,7 +386,7 @@ def monitoring():
             stub = get_stub(bank)
             resp = stub.GetEvents(bank_pb2.EventsRequest(), timeout=2)
             for evt in resp.events[-5:]:  # últimos 5 por nodo
-                level = {"election": "INFO", "failure": "WARN", "sync": "SUCCESS"}.get(evt.type, "INFO")
+                level = {"election": "INFO", "failure": "ALERTA", "sync": "OK", "transaction": "OK"}.get(evt.type, "INFO")
                 logs.append({
                     "timestamp": evt.timestamp[:19].replace("T", " ") if evt.timestamp else "—",
                     "level": level,
@@ -454,7 +454,7 @@ def error():
     return render_template('error.html', user=user, active_page='error',
                            recovery=recovery, failed_node=failed_node,
                            error_title='Restaurando estado del sistema',
-                           error_message='The coordinator detected a disruption...')
+                           error_message='El coordinador detectó una interrupción y está restaurando el estado del sistema.')
 
 # ── API ──────────────────────────────────────────────────────────────────────
 

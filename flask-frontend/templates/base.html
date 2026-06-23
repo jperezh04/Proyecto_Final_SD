@@ -4,7 +4,7 @@
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <meta name="description" content="Panel bancario distribuido para nodos institucionales: monitoreo, transferencias y coordinación." />
-    <meta name="theme-color" content="#131b2e" />
+    <meta name="theme-color" content="#2563eb" />
     <title>{% block title %}Sistema Bancario Distribuido{% endblock %}</title>
 
     <!-- Fuente Geist -->
@@ -172,7 +172,7 @@
 
     <!-- ========== SCRIPTS ========== -->
     <script>
-        window.showToast = function(message, duration = 3000, type = 'info') {
+        window.showToast = window._showToast = function(message, duration = 3000, type = 'info') {
             const container = document.getElementById('toastContainer');
             if (!container) return;
             const toast = document.createElement('div');
