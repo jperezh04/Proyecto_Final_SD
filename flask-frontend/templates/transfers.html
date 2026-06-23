@@ -1,248 +1,503 @@
 {% extends "base.html" %}
 
-{% block title %}Transfers{% endblock %}
+{% block title %}Transferencias{% endblock %}
+
+{% block extra_head %}
+<style>
+    .transfer-field:focus-within {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 1px var(--color-primary);
+    }
+    .transfer-step-line {
+        background: linear-gradient(180deg, var(--color-primary), var(--color-outline-variant));
+    }
+    .transfer-step-active {
+        border-color: var(--color-primary) !important;
+        background: rgba(167, 139, 250, 0.12) !important;
+    }
+    .transfer-step-success {
+        border-color: #10b981 !important;
+        background: rgba(16, 185, 129, 0.14) !important;
+    }
+    .transfer-step-error {
+        border-color: #ef4444 !important;
+        background: rgba(239, 68, 68, 0.14) !important;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="max-w-[1200px] mx-auto">
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+<div class="max-w-[1280px] mx-auto space-y-6">
+    <div class="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
         <div>
-            <h2 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">Initiate Transfer</h2>
-            <p class="font-body text-base text-on-surface-variant">Execute precise interbank and local transactions.</p>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-label mb-3">
+                <span class="material-symbols-outlined text-[16px]">swap_horiz</span>
+                Movimientos bancarios
+            </div>
+            <h2 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">Nueva transferencia</h2>
+            <p class="font-body text-base text-on-surface-variant">Envía dinero entre cuentas locales o entre bancos usando validación distribuida.</p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 w-full xl:w-auto">
+            <div class="bg-surface-container border border-outline-variant rounded-xl px-4 py-3">
+                <p class="font-label text-[11px] uppercase tracking-wider text-on-surface-variant">Cuentas</p>
+                <p class="font-headline text-xl font-semibold text-on-surface">{{ user_accounts|length }}</p>
+            </div>
+            <div class="bg-surface-container border border-outline-variant rounded-xl px-4 py-3">
+                <p class="font-label text-[11px] uppercase tracking-wider text-on-surface-variant">Bancos</p>
+                <p class="font-headline text-xl font-semibold text-on-surface">{{ banks|length }}</p>
+            </div>
+            <div class="bg-surface-container border border-primary/30 rounded-xl px-4 py-3 bg-primary/5">
+                <p class="font-label text-[11px] uppercase tracking-wider text-primary">Protocolo</p>
+                <p class="font-headline text-xl font-semibold text-primary">2PC</p>
+            </div>
         </div>
     </div>
 
-    <!-- Bento Grid: Formulario + Panel 2PC -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        <!-- Formulario (izquierda - 8 columnas) -->
-        <div class="lg:col-span-8 bg-surface-container rounded-xl p-6 border border-outline-variant shadow-sm">
-            <form class="space-y-8" id="transferForm" onsubmit="handleTransfer(event)">
-                
-                <!-- Toggle: Local / Interbancaria -->
-                <div class="flex items-center p-1 bg-surface-container-highest rounded-lg w-fit border border-outline-variant/50">
-                    <label class="cursor-pointer">
-                        <input checked class="peer sr-only" name="transfer_type" type="radio" value="local" onchange="updateTransferType()"/>
-                        <div class="px-4 py-2 rounded-md font-label text-sm text-on-surface-variant peer-checked:bg-surface peer-checked:text-primary peer-checked:shadow-sm peer-checked:border peer-checked:border-outline-variant/30 transition-all flex items-center gap-2">
-                            <span class="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-                            Local Transfer
+    {% if not user_accounts %}
+    <div class="bg-error-container/20 border border-error/30 rounded-xl p-4 text-on-surface flex items-start gap-3">
+        <span class="material-symbols-outlined text-error">warning</span>
+        <div>
+            <p class="font-label text-sm text-error">No hay cuentas cargadas</p>
+            <p class="font-body text-sm text-on-surface-variant">Levanta los nodos bancarios primero para que el formulario pueda traer cuentas reales por gRPC.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div class="xl:col-span-8 bg-surface-container rounded-2xl border border-outline-variant shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-outline-variant bg-surface/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                    <h3 class="font-headline text-lg font-semibold text-on-surface">Datos de la operación</h3>
+                    <p class="font-body text-sm text-on-surface-variant">Completa los datos y confirma el movimiento.</p>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-on-surface-variant">
+                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                    Validación en tiempo real
+                </div>
+            </div>
+
+            <form class="p-6 space-y-6" id="transferForm" onsubmit="handleTransfer(event)">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label class="cursor-pointer group">
+                        <input checked class="peer sr-only" name="transfer_type" type="radio" value="local" onchange="updateTransferType(); updatePreview();"/>
+                        <div class="h-full rounded-xl border border-outline-variant bg-surface-container-high p-4 transition-all peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-sm">
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-9 h-9 rounded-lg bg-surface flex items-center justify-center text-primary">
+                                    <span class="material-symbols-outlined">account_balance_wallet</span>
+                                </div>
+                                <div>
+                                    <p class="font-label text-sm text-on-surface">Transferencia local</p>
+                                    <p class="font-body text-xs text-on-surface-variant">Origen y destino en el mismo banco.</p>
+                                </div>
+                            </div>
                         </div>
                     </label>
-                    <label class="cursor-pointer">
-                        <input class="peer sr-only" name="transfer_type" type="radio" value="interbank" onchange="updateTransferType()"/>
-                        <div class="px-4 py-2 rounded-md font-label text-sm text-on-surface-variant peer-checked:bg-surface peer-checked:text-primary peer-checked:shadow-sm peer-checked:border peer-checked:border-outline-variant/30 transition-all flex items-center gap-2">
-                            <span class="material-symbols-outlined text-[16px]">language</span>
-                            Interbank Transfer
+                    <label class="cursor-pointer group">
+                        <input class="peer sr-only" name="transfer_type" type="radio" value="interbank" onchange="updateTransferType(); updatePreview();"/>
+                        <div class="h-full rounded-xl border border-outline-variant bg-surface-container-high p-4 transition-all peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-sm">
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-9 h-9 rounded-lg bg-surface flex items-center justify-center text-primary">
+                                    <span class="material-symbols-outlined">language</span>
+                                </div>
+                                <div>
+                                    <p class="font-label text-sm text-on-surface">Transferencia interbancaria</p>
+                                    <p class="font-body text-xs text-on-surface-variant">Se coordina entre nodos con 2PC.</p>
+                                </div>
+                            </div>
                         </div>
                     </label>
                 </div>
 
-                <!-- Cuentas origen / destino -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-                    <div class="hidden md:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-[2px] bg-outline-variant z-0"></div>
-                    <div class="hidden md:flex absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-surface rounded-full border border-outline-variant items-center justify-center z-10 text-on-surface-variant">
-                        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 relative">
+                    <div class="hidden md:flex absolute top-[58%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-outline-variant bg-surface z-10 items-center justify-center text-primary shadow-sm">
+                        <span class="material-symbols-outlined">arrow_forward</span>
                     </div>
 
-                    <!-- Origen -->
-                    <div class="space-y-4 bg-surface-container-high p-4 rounded-lg border border-outline-variant/50 relative z-0">
-                        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Source</h3>
+                    <section class="rounded-2xl border border-outline-variant bg-surface-container-high p-5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-label text-xs text-primary uppercase tracking-wider">Cuenta origen</h4>
+                            <span class="material-symbols-outlined text-primary text-[20px]">north_east</span>
+                        </div>
                         <div class="space-y-2">
-                            <label class="block font-label text-sm text-on-surface">Source Bank</label>
-                            <div class="relative">
-                                <select class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none" id="sourceBank">
+                            <label class="block font-label text-sm text-on-surface">Banco origen</label>
+                            <div class="relative transfer-field border border-outline-variant rounded-xl bg-surface transition-all">
+                                <select class="w-full bg-transparent px-4 py-3 pr-10 font-body text-sm text-on-surface focus:outline-none appearance-none" id="sourceBanco" onchange="filterOrigenCuentas(); updateTransferType(); updatePreview();">
                                     {% for bank in banks %}
                                     <option value="{{ bank.id }}">{{ bank.name }}</option>
                                     {% endfor %}
                                 </select>
-                                <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+                                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
                             </div>
                         </div>
                         <div class="space-y-2">
-                            <label class="block font-label text-sm text-on-surface">Source Account</label>
-                            <select class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none" id="sourceAccount">
-                                {% for account in user_accounts %}
-                                <option value="{{ account.number }}">{{ account.number }} ({{ account.bank }})</option>
-                                {% endfor %}
-                            </select>
+                            <label class="block font-label text-sm text-on-surface">Cuenta origen</label>
+                            <div class="relative transfer-field border border-outline-variant rounded-xl bg-surface transition-all">
+                                <select class="w-full bg-transparent px-4 py-3 pr-10 font-body text-sm text-on-surface focus:outline-none appearance-none" id="sourceAccount" onchange="updatePreview();">
+                                    {% for account in user_accounts %}
+                                    <option value="{{ account.number }}" data-bank="{{ account.bank_id }}" data-currency="{{ account.currency }}" data-balance="{{ account.balance }}" data-bank-name="{{ account.bank }}">{{ account.number }} · {{ account.bank }} · {{ account.balance }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+                            </div>
                         </div>
-                    </div>
+                    </section>
 
-                    <!-- Destino -->
-                    <div class="space-y-4 bg-surface-container-high p-4 rounded-lg border border-outline-variant/50 relative z-0">
-                        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Destination</h3>
+                    <section class="rounded-2xl border border-outline-variant bg-surface-container-high p-5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-label text-xs text-primary uppercase tracking-wider">Cuenta destino</h4>
+                            <span class="material-symbols-outlined text-primary text-[20px]">south_west</span>
+                        </div>
                         <div class="space-y-2">
-                            <label class="block font-label text-sm text-on-surface">Destination Bank</label>
-                            <div class="relative">
-                                <select class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none" id="destBank">
-                                    <option value="">Select Bank...</option>
+                            <label class="block font-label text-sm text-on-surface">Banco destino</label>
+                            <div class="relative transfer-field border border-outline-variant rounded-xl bg-surface transition-all">
+                                <select class="w-full bg-transparent px-4 py-3 pr-10 font-body text-sm text-on-surface focus:outline-none appearance-none disabled:opacity-60" id="destBanco" onchange="updatePreview();">
+                                    <option value="">Selecciona un banco...</option>
                                     {% for bank in banks %}
                                     <option value="{{ bank.id }}">{{ bank.name }}</option>
                                     {% endfor %}
                                 </select>
-                                <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+                                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
                             </div>
                         </div>
                         <div class="space-y-2">
-                            <label class="block font-label text-sm text-on-surface">Destination Account</label>
-                            <input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary" id="destAccount" placeholder="Enter account number" type="text"/>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Monto y descripción -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-2">
-                        <label class="block font-label text-sm text-on-surface">Amount</label>
-                        <div class="relative flex items-center">
-                            <span class="absolute left-4 font-body text-lg text-on-surface-variant">$</span>
-                            <input class="w-full bg-surface border border-outline-variant rounded-lg pl-8 pr-4 py-2 font-body text-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary" id="amount" placeholder="0.00" type="number" step="0.01" min="0.01"/>
-                            <div class="absolute right-4 flex items-center gap-1">
-                                <span class="font-label text-sm text-on-surface-variant">USD</span>
+                            <label class="block font-label text-sm text-on-surface">Cuenta destino</label>
+                            <div class="transfer-field border border-outline-variant rounded-xl bg-surface transition-all">
+                                <input class="w-full bg-transparent px-4 py-3 font-body text-sm text-on-surface focus:outline-none uppercase" id="destAccount" placeholder="Ejemplo: PE002" type="text" oninput="this.value = this.value.toUpperCase(); updatePreview();"/>
                             </div>
+                            <p class="font-body text-xs text-on-surface-variant">Usa el prefijo del banco: PE, CH o CO.</p>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div class="space-y-2">
+                        <label class="block font-label text-sm text-on-surface">Monto</label>
+                        <div class="transfer-field border border-outline-variant rounded-xl bg-surface transition-all relative flex items-center">
+                            <span class="absolute left-4 font-label text-on-surface-variant" id="currencyPrefix">MULTI</span>
+                            <input class="w-full bg-transparent pl-20 pr-4 py-3 font-body text-lg text-on-surface focus:outline-none" id="amount" placeholder="0.00" type="number" step="0.01" min="0.01" oninput="updatePreview();"/>
                         </div>
                     </div>
                     <div class="space-y-2">
-                        <label class="block font-label text-sm text-on-surface">Description (Reference)</label>
-                        <input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary h-[44px]" id="description" placeholder="e.g., Invoice #INV-2023-01" type="text"/>
+                        <label class="block font-label text-sm text-on-surface">Descripción</label>
+                        <div class="transfer-field border border-outline-variant rounded-xl bg-surface transition-all">
+                            <input class="w-full bg-transparent px-4 py-3 font-body text-sm text-on-surface focus:outline-none" id="description" placeholder="Ejemplo: Pago de servicio" type="text" oninput="updatePreview();"/>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Botones -->
-                <div class="pt-4 border-t border-outline-variant flex justify-end gap-4">
-                    <button class="px-6 py-2 bg-surface-container-high border border-outline-variant rounded-lg font-label text-sm text-on-surface hover:bg-surface-container-highest transition-colors" type="button" onclick="resetForm()">Cancel</button>
-                    <button class="px-6 py-2 bg-primary rounded-lg font-label text-sm text-on-primary hover:opacity-90 transition-opacity flex items-center gap-2" type="submit">
+                <div class="rounded-xl bg-surface-container-low border border-outline-variant p-4 flex items-start gap-3">
+                    <span class="material-symbols-outlined text-primary mt-0.5">info</span>
+                    <p class="font-body text-sm text-on-surface-variant">
+                        Antes de enviar, el sistema valida que las cuentas existan, que pertenezcan al banco seleccionado y que el monto sea mayor a cero.
+                    </p>
+                </div>
+
+                <div class="pt-4 border-t border-outline-variant flex flex-col sm:flex-row justify-end gap-3">
+                    <button class="px-6 py-3 bg-surface-container-high border border-outline-variant rounded-xl font-label text-sm text-on-surface hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-2" type="button" onclick="resetForm()">
+                        <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+                        Limpiar
+                    </button>
+                    <button id="submitTransferBtn" class="px-6 py-3 bg-primary rounded-xl font-label text-sm text-on-primary hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:cursor-not-allowed" type="submit" {% if not user_accounts %}disabled{% endif %}>
                         <span class="material-symbols-outlined text-[18px]">send</span>
-                        Initiate Transfer
+                        Realizar transferencia
                     </button>
                 </div>
             </form>
         </div>
 
-        <!-- Panel 2PC (derecha - 4 columnas) -->
-        <div class="lg:col-span-4 bg-surface-container rounded-xl p-6 border border-outline-variant shadow-sm flex flex-col relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-            
-            <div class="flex items-center justify-between mb-6 relative z-10">
-                <h3 class="font-headline text-lg font-semibold text-on-surface">Transaction State</h3>
-                <span class="px-2 py-1 bg-tertiary-container/20 border border-tertiary-container/30 rounded text-tertiary font-body text-[10px] tracking-wider uppercase">2PC Protocol</span>
-            </div>
-            
-            <p class="font-body text-sm text-on-surface-variant mb-8 relative z-10" id="twopcStatus">Distributed transaction monitoring. Awaiting initiation.</p>
-            
-            <div class="flex-1 relative z-10">
-                <div class="absolute left-[15px] top-4 bottom-4 w-[2px] bg-outline-variant"></div>
-                
-                <!-- Fase 1: PREPARE -->
-                <div class="relative pl-8 mb-6" id="phase1Container">
-                    <div class="absolute left-0 top-1 w-[32px] h-[32px] rounded-full bg-surface border-2 border-outline flex items-center justify-center" id="phase1Dot">
-                        <div class="w-2 h-2 rounded-full bg-outline" id="phase1Inner"></div>
+        <aside class="xl:col-span-4 space-y-6">
+            <div class="bg-surface-container rounded-2xl p-6 border border-outline-variant shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-5">
+                        <div>
+                            <h3 class="font-headline text-lg font-semibold text-on-surface">Resumen</h3>
+                            <p class="font-body text-xs text-on-surface-variant">Vista previa antes de confirmar.</p>
+                        </div>
+                        <span id="previewType" class="px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-[11px] font-label">Local</span>
                     </div>
-                    <h4 class="font-label text-sm text-on-surface mb-1 flex items-center gap-2">PHASE 1: PREPARE</h4>
-                    <p class="font-body text-[11px] text-on-surface-variant leading-relaxed">Locking resources across Coordinator and Participant nodes. Verifying liquidity constraints.</p>
-                </div>
-                
-                <!-- Fase 2: COMMIT / ROLLBACK -->
-                <div class="relative pl-8" id="phase2Container">
-                    <div class="absolute left-0 top-1 w-[32px] h-[32px] rounded-full bg-surface border-2 border-outline flex items-center justify-center" id="phase2Dot">
-                        <div class="w-2 h-2 rounded-full bg-outline" id="phase2Inner"></div>
-                    </div>
-                    <h4 class="font-label text-sm text-on-surface mb-1">PHASE 2: COMMIT</h4>
-                    <p class="font-body text-[11px] text-on-surface-variant leading-relaxed mb-2">
-                        Applying ledger updates permanently. If consensus fails, protocol triggers <span class="text-error font-semibold">ROLLBACK</span>.
-                    </p>
-                    <div class="mt-2 bg-surface-container-lowest border border-outline-variant rounded-md p-2 font-body text-[10px] text-on-surface-variant" id="twopcLog">
-                        &gt; _ awaiting instruction...
+
+                    <div class="space-y-4">
+                        <div class="p-4 rounded-xl bg-surface-container-high border border-outline-variant">
+                            <p class="font-label text-xs uppercase tracking-wider text-on-surface-variant mb-1">Origen</p>
+                            <p id="previewOrigen" class="font-body text-sm text-on-surface font-medium">—</p>
+                            <p id="previewOrigenSaldo" class="font-body text-xs text-on-surface-variant mt-1">Saldo: —</p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-surface-container-high border border-outline-variant">
+                            <p class="font-label text-xs uppercase tracking-wider text-on-surface-variant mb-1">Destino</p>
+                            <p id="previewDestino" class="font-body text-sm text-on-surface font-medium">—</p>
+                            <p id="previewDestBanco" class="font-body text-xs text-on-surface-variant mt-1">Banco: —</p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-primary/10 border border-primary/20">
+                            <p class="font-label text-xs uppercase tracking-wider text-primary mb-1">Monto a enviar</p>
+                            <p id="previewMonto" class="font-headline text-2xl text-primary font-semibold">MULTI 0.00</p>
+                            <p id="previewDescripción" class="font-body text-xs text-on-surface-variant mt-1">Sin descripción</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <div class="bg-surface-container rounded-2xl p-6 border border-outline-variant shadow-sm flex flex-col relative overflow-hidden">
+                <div class="flex items-center justify-between mb-5 relative z-10">
+                    <div>
+                        <h3 class="font-headline text-lg font-semibold text-on-surface">Estado de transacción</h3>
+                        <p class="font-body text-xs text-on-surface-variant">Seguimiento del protocolo distribuido.</p>
+                    </div>
+                    <span class="px-2 py-1 bg-tertiary-container/20 border border-tertiary-container/30 rounded text-tertiary font-body text-[10px] tracking-wider uppercase">2PC</span>
+                </div>
+
+                <p class="font-body text-sm text-on-surface-variant mb-6 relative z-10" id="twopcEstado">Esperando datos para iniciar.</p>
+
+                <div class="relative z-10 space-y-5">
+                    <div class="absolute left-[15px] top-4 bottom-20 w-[2px] transfer-step-line opacity-40"></div>
+
+                    <div class="relative pl-10" id="phaseValidateContainer">
+                        <div class="absolute left-0 top-1 w-[32px] h-[32px] rounded-full bg-surface border-2 border-outline flex items-center justify-center" id="phaseValidateDot">
+                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant" id="phaseValidateIcon">rule</span>
+                        </div>
+                        <h4 class="font-label text-sm text-on-surface mb-1">Validación</h4>
+                        <p class="font-body text-[11px] text-on-surface-variant leading-relaxed">Revisa monto, banco origen, banco destino y cuentas.</p>
+                    </div>
+
+                    <div class="relative pl-10" id="phase1Container">
+                        <div class="absolute left-0 top-1 w-[32px] h-[32px] rounded-full bg-surface border-2 border-outline flex items-center justify-center" id="phase1Dot">
+                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant" id="phase1Icon">lock</span>
+                        </div>
+                        <h4 class="font-label text-sm text-on-surface mb-1">Fase 1: preparación</h4>
+                        <p class="font-body text-[11px] text-on-surface-variant leading-relaxed">El coordinador solicita reserva de recursos a los nodos participantes.</p>
+                    </div>
+
+                    <div class="relative pl-10" id="phase2Container">
+                        <div class="absolute left-0 top-1 w-[32px] h-[32px] rounded-full bg-surface border-2 border-outline flex items-center justify-center" id="phase2Dot">
+                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant" id="phase2Icon">done_all</span>
+                        </div>
+                        <h4 class="font-label text-sm text-on-surface mb-1">Fase 2: confirmación</h4>
+                        <p class="font-body text-[11px] text-on-surface-variant leading-relaxed">Si todo sale bien, se confirma. Si algo falla, se revierte.</p>
+                    </div>
+
+                    <div class="mt-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-3 font-body text-[11px] text-on-surface-variant leading-relaxed min-h-[90px]" id="twopcLog">
+                        &gt; Esperando instrucción...
+                    </div>
+                </div>
+            </div>
+        </aside>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    const bankNames = {
+        {% for bank in banks %}
+        "{{ bank.id }}": "{{ bank.name }}",
+        {% endfor %}
+    };
+
+    function getSelectedOrigenOption() {
+        const sourceAccount = document.getElementById('sourceAccount');
+        return sourceAccount.selectedOptions && sourceAccount.selectedOptions.length ? sourceAccount.selectedOptions[0] : null;
+    }
+
+    function formatMonto(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number) || number <= 0) return 'MULTI 0.00';
+        return 'MULTI ' + number.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function filterOrigenCuentas() {
+        const sourceBanco = document.getElementById('sourceBanco').value;
+        const sourceAccount = document.getElementById('sourceAccount');
+        let firstVisible = null;
+
+        Array.from(sourceAccount.options).forEach(option => {
+            const visible = option.dataset.bank === sourceBanco;
+            option.hidden = !visible;
+            option.disabled = !visible;
+            if (visible && !firstVisible) firstVisible = option;
+        });
+
+        if (!sourceAccount.selectedOptions.length || sourceAccount.selectedOptions[0].disabled) {
+            if (firstVisible) sourceAccount.value = firstVisible.value;
+        }
+    }
+
     function updateTransferType() {
         const type = document.querySelector('input[name="transfer_type"]:checked').value;
-        const destBank = document.getElementById('destBank');
+        const destBanco = document.getElementById('destBanco');
+
         if (type === 'local') {
-            const sourceBank = document.getElementById('sourceBank').value;
-            destBank.value = sourceBank;
-            destBank.disabled = true;
+            const sourceBanco = document.getElementById('sourceBanco').value;
+            destBanco.value = sourceBanco;
+            destBanco.disabled = true;
         } else {
-            destBank.disabled = false;
-            destBank.value = '';
+            destBanco.disabled = false;
+            if (destBanco.value === document.getElementById('sourceBanco').value) {
+                destBanco.value = '';
+            }
         }
+    }
+
+    function updatePreview() {
+        const type = document.querySelector('input[name="transfer_type"]:checked').value;
+        const sourceBanco = document.getElementById('sourceBanco').value;
+        const destBanco = document.getElementById('destBanco').value;
+        const destAccount = document.getElementById('destAccount').value.trim().toUpperCase();
+        const amount = document.getElementById('amount').value;
+        const description = document.getElementById('description').value.trim();
+        const selectedOrigen = getSelectedOrigenOption();
+
+        document.getElementById('previewType').textContent = type === 'local' ? 'Local' : 'Interbancaria';
+        document.getElementById('previewOrigen').textContent = selectedOrigen ? `${selectedOrigen.value} · ${bankNames[sourceBanco] || sourceBanco}` : '—';
+        document.getElementById('previewOrigenSaldo').textContent = selectedOrigen ? `Saldo: ${selectedOrigen.dataset.balance || '—'}` : 'Saldo: —';
+        document.getElementById('previewDestino').textContent = destAccount || '—';
+        document.getElementById('previewDestBanco').textContent = `Banco: ${destBanco ? (bankNames[destBanco] || destBanco) : '—'}`;
+        document.getElementById('previewMonto').textContent = formatMonto(amount);
+        document.getElementById('previewDescripción').textContent = description || 'Sin descripción';
     }
 
     function resetForm() {
         document.getElementById('transferForm').reset();
-        document.getElementById('destBank').disabled = false;
         document.querySelector('input[value="local"]').checked = true;
+        filterOrigenCuentas();
+        updateTransferType();
+        updatePreview();
         reset2PC();
+        showToast('Formulario limpiado.', 1800, 'info');
+    }
+
+    function setStepEstado(step, state) {
+        const dot = document.getElementById(`${step}Dot`);
+        const icon = document.getElementById(`${step}Icon`);
+        if (!dot || !icon) return;
+        dot.classList.remove('transfer-step-active', 'transfer-step-success', 'transfer-step-error');
+        icon.classList.remove('text-primary', 'text-on-surface-variant');
+        icon.style.color = '';
+
+        if (state === 'active') {
+            dot.classList.add('transfer-step-active');
+            icon.classList.add('text-primary');
+        } else if (state === 'success') {
+            dot.classList.add('transfer-step-success');
+            icon.style.color = '#10b981';
+        } else if (state === 'error') {
+            dot.classList.add('transfer-step-error');
+            icon.style.color = '#ef4444';
+        } else {
+            icon.classList.add('text-on-surface-variant');
+        }
     }
 
     function reset2PC() {
-        document.getElementById('phase1Inner').style.background = 'var(--color-outline)';
-        document.getElementById('phase2Inner').style.background = 'var(--color-outline)';
-        document.getElementById('twopcLog').innerHTML = '&gt; _ awaiting instruction...';
-        document.getElementById('twopcStatus').textContent = 'Distributed transaction monitoring. Awaiting initiation.';
+        setStepEstado('phaseValidate', 'idle');
+        setStepEstado('phase1', 'idle');
+        setStepEstado('phase2', 'idle');
+        document.getElementById('twopcLog').innerHTML = '&gt; Esperando instrucción...';
+        document.getElementById('twopcEstado').textContent = 'Esperando datos para iniciar.';
     }
 
-    function handleTransfer(event) {
-        event.preventDefault();
-        const type = document.querySelector('input[name="transfer_type"]:checked').value;
-        const sourceBank = document.getElementById('sourceBank').value;
+    function setTransferLoading(isLoading) {
+        const btn = document.getElementById('submitTransferBtn');
+        btn.disabled = isLoading || {{ 'true' if not user_accounts else 'false' }};
+        btn.classList.toggle('opacity-60', isLoading);
+        btn.innerHTML = isLoading
+            ? '<span class="material-symbols-outlined text-[18px] animate-spin">sync</span> Procesando...'
+            : '<span class="material-symbols-outlined text-[18px]">send</span> Realizar transferencia';
+    }
+
+    function validateTransferForm() {
         const sourceAccount = document.getElementById('sourceAccount').value;
-        const destBank = document.getElementById('destBank').value;
-        const destAccount = document.getElementById('destAccount').value;
-        const amount = document.getElementById('amount').value;
+        const destBanco = document.getElementById('destBanco').value;
+        const destAccount = document.getElementById('destAccount').value.trim().toUpperCase();
+        const amount = Number(document.getElementById('amount').value);
+
+        if (!sourceAccount) return 'Selecciona una cuenta origen.';
+        if (!Number.isFinite(amount) || amount <= 0) return 'Ingresa un monto mayor a 0.';
+        if (!destBanco) return 'Selecciona el banco destino.';
+        if (!destAccount) return 'Ingresa una cuenta destino.';
+        if (sourceAccount === destAccount) return 'La cuenta origen y destino deben ser distintas.';
+        return null;
+    }
+
+    async function handleTransfer(event) {
+        event.preventDefault();
+        const validationError = validateTransferForm();
+        if (validationError) {
+            showToast(validationError, 3200, 'warning');
+            setStepEstado('phaseValidate', 'error');
+            document.getElementById('twopcEstado').textContent = 'Corrige los datos antes de enviar.';
+            return;
+        }
+
+        const sourceBanco = document.getElementById('sourceBanco').value;
+        const sourceAccount = document.getElementById('sourceAccount').value;
+        const destBanco = document.getElementById('destBanco').value;
+        const destAccount = document.getElementById('destAccount').value.trim().toUpperCase();
+        const amount = Number(document.getElementById('amount').value);
         const description = document.getElementById('description').value;
 
-        if (!amount || amount <= 0) { alert('Please enter a valid amount.'); return; }
-        if (!destAccount) { alert('Please enter a destination account.'); return; }
+        setTransferLoading(true);
+        setStepEstado('phaseValidate', 'active');
+        setStepEstado('phase1', 'idle');
+        setStepEstado('phase2', 'idle');
+        document.getElementById('twopcEstado').textContent = 'Validando operación...';
+        document.getElementById('twopcLog').innerHTML = '&gt; Validando cuentas y monto...<br>';
 
-        // Mostrar en el panel 2PC que se está iniciando
-        document.getElementById('twopcStatus').textContent = 'Iniciando 2PC...';
-        document.getElementById('twopcLog').innerHTML = '&gt; Enviando PREPARE...';
+        try {
+            setStepEstado('phaseValidate', 'success');
+            setStepEstado('phase1', 'active');
+            document.getElementById('twopcEstado').textContent = 'Enviando solicitud de preparación...';
+            document.getElementById('twopcLog').innerHTML += '&gt; Fase 1: solicitando PREPARE a los nodos...<br>';
 
-        fetch('/api/transfer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                source_bank: sourceBank,
-                source_account: sourceAccount,
-                dest_bank: destBank,
-                dest_account: destAccount,
-                amount: amount,
-                description: description
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
+            const response = await fetch('/api/transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source_bank: sourceBanco,
+                    source_account: sourceAccount,
+                    dest_bank: destBanco,
+                    dest_account: destAccount,
+                    amount: amount,
+                    description: description
+                })
+            });
+            const data = await response.json();
             const log = document.getElementById('twopcLog');
-            const status = document.getElementById('twopcStatus');
-            const phase1Inner = document.getElementById('phase1Inner');
-            const phase2Inner = document.getElementById('phase2Inner');
+            const status = document.getElementById('twopcEstado');
 
-            if (data.success) {
-                phase1Inner.style.background = '#10b981';
-                phase2Inner.style.background = '#10b981';
-                log.innerHTML += '&gt; [COMMIT] ' + data.message + '<br>';
-                status.textContent = 'Transacción completada: ' + data.tx_id;
+            if (response.ok && data.success) {
+                setStepEstado('phase1', 'success');
+                setStepEstado('phase2', 'success');
+                log.innerHTML += '&gt; Fase 2: COMMIT aplicado correctamente.<br>';
+                log.innerHTML += '&gt; ID de transacción: ' + (data.tx_id || '—') + '<br>';
+                status.textContent = 'Transferencia completada correctamente.';
+                showToast('Movimiento realizado correctamente.', 3500, 'success');
             } else {
-                phase1Inner.style.background = '#ef4444';
-                phase2Inner.style.background = '#ef4444';
-                log.innerHTML += '&gt; [ABORT] ' + data.message + '<br>';
-                status.textContent = 'Transacción fallida';
+                setStepEstado('phase1', 'error');
+                setStepEstado('phase2', 'error');
+                log.innerHTML += '&gt; ABORT: ' + (data.message || 'La transferencia fue rechazada.') + '<br>';
+                status.textContent = 'Transferencia rechazada.';
+                showToast(data.message || 'No se pudo realizar la transferencia.', 4500, 'error');
             }
-        })
-        .catch(error => {
+        } catch (error) {
             console.error('Error:', error);
-            document.getElementById('twopcStatus').textContent = 'Error de conexión';
-        });
+            setStepEstado('phaseValidate', 'error');
+            setStepEstado('phase1', 'error');
+            setStepEstado('phase2', 'error');
+            document.getElementById('twopcEstado').textContent = 'Error de conexión.';
+            document.getElementById('twopcLog').innerHTML += '&gt; Error: no se pudo conectar con Flask o con los nodos.<br>';
+            showToast('Error de conexión con el frontend o los nodos.', 4500, 'error');
+        } finally {
+            setTransferLoading(false);
+            updatePreview();
+        }
     }
 
-    document.addEventListener('DOMContentLoaded', updateTransferType);
+    document.addEventListener('DOMContentLoaded', () => {
+        filterOrigenCuentas();
+        updateTransferType();
+        updatePreview();
+        reset2PC();
+    });
 </script>
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Coordination{% endblock %}
+{% block title %}Coordinación{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -26,35 +26,35 @@
     <!-- Page Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-2 gap-4">
         <div>
-            <h1 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">Distributed Coordination</h1>
-            <p class="font-body text-base text-on-surface-variant">Bully Algorithm State Monitoring & Node Election</p>
+            <h1 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">Coordinación distribuida</h1>
+            <p class="font-body text-base text-on-surface-variant">Monitoreo del algoritmo Bully y elección de nodo</p>
         </div>
         <div class="flex gap-2">
-            <button id="forceElectionBtn" class="px-4 py-2 bg-surface-container border border-outline-variant rounded-lg font-label text-sm text-on-surface hover:bg-surface-container-high transition-colors">
-                Force Election
+            <button id="forceElecciónBtn" class="px-4 py-2 bg-surface-container border border-outline-variant rounded-lg font-label text-sm text-on-surface hover:bg-surface-container-high transition-colors">
+                Forzar elección
             </button>
             <button id="exportLogsBtn" class="px-4 py-2 bg-primary rounded-lg font-label text-sm text-on-primary hover:bg-primary/90 transition-colors shadow-sm">
-                Export Logs
+                Exportar Logs
             </button>
         </div>
     </div>
 
     <!-- Top Row: Overview & Visualization -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Left: Current Coordinator Status -->
+        <!-- Left: Actual Coordinador Estado -->
         <div class="lg:col-span-4 flex flex-col gap-6">
             <div class="glass-card rounded-xl p-6 flex flex-col justify-between h-full relative overflow-hidden shadow-sm">
                 <div class="absolute -right-12 -top-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
                 <div class="relative z-10">
                     <div class="flex items-center gap-2 mb-6">
                         <span class="material-symbols-outlined text-primary">verified_user</span>
-                        <h3 class="font-headline text-lg font-semibold text-on-surface">Current Coordinator</h3>
+                        <h3 class="font-headline text-lg font-semibold text-on-surface">Actual Coordinador</h3>
                     </div>
                     <div id="coordinatorName" class="font-headline text-4xl font-bold text-on-surface mb-2">{{ coordinator.name }}</div>
                     <p class="font-body text-sm text-on-surface-variant">{{ coordinator.details }}</p>
                 </div>
                 <div class="mt-6 pt-4 border-t border-outline-variant relative z-10">
-                    <p class="font-label text-xs text-on-surface-variant mb-2 uppercase tracking-wider">Algorithm State</p>
+                    <p class="font-label text-xs text-on-surface-variant mb-2 uppercase tracking-wider">Algorithm Estado</p>
                     <div class="flex items-center gap-2">
                         <div id="stateIndicator" class="w-3 h-3 rounded-full {{ 'bg-tertiary animate-pulse' if coordinator.state == 'STABLE' else 'bg-[#f59e0b] animate-pulse' }}"></div>
                         <span id="stateText" class="font-headline text-lg font-semibold text-on-surface">{{ coordinator.state }}</span>
@@ -81,25 +81,25 @@
         </div>
     </div>
 
-    <!-- Bottom Row: Node List & Timeline -->
+    <!-- Fila inferior: lista de nodos y línea de tiempo -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
-        <!-- Node List -->
+        <!-- Lista de nodos -->
         <div class="lg:col-span-8 glass-card rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-container/50">
-                <h3 class="font-headline text-lg font-semibold text-on-surface">Node Registry</h3>
+                <h3 class="font-headline text-lg font-semibold text-on-surface">Registro de nodos</h3>
                 <span id="activeNodesCount" class="font-label text-xs px-2 py-1 bg-surface-container-high rounded text-on-surface-variant">
-                    {{ nodes | selectattr('state', 'ne', 'DISCONNECTED') | list | length }} Active Nodes
+                    {{ nodes | selectattr('state', 'ne', 'DISCONNECTED') | list | length }} Nodos activos
                 </span>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-surface-container-low border-b border-outline-variant">
-                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">Node ID</th>
-                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">State</th>
-                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">Priority</th>
-                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">Uptime</th>
-                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
+                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">ID del nodo</th>
+                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">Estado</th>
+                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">Prioridad</th>
+                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider">Tiempo activo</th>
+                            <th class="py-3 px-5 font-label text-xs text-on-surface-variant uppercase tracking-wider text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="nodeTableBody" class="font-body text-sm">
@@ -128,7 +128,7 @@
                                 {{ node.uptime if node.state != 'DISCONNECTED' else '-' }}
                             </td>
                             <td class="py-4 px-5 text-right">
-                                <button class="node-actions-btn text-on-surface-variant hover:text-on-surface" data-node-id="{{ node.name }}" aria-label="Node actions">
+                                <button class="node-actions-btn text-on-surface-variant hover:text-on-surface" data-node-id="{{ node.name }}" aria-label="Acciones del nodo">
                                     <span class="material-symbols-outlined text-[18px]">more_vert</span>
                                 </button>
                             </td>
@@ -139,10 +139,10 @@
             </div>
         </div>
 
-        <!-- Event Timeline -->
+        <!-- Línea de eventos -->
         <div class="lg:col-span-4 glass-card rounded-xl shadow-sm flex flex-col overflow-hidden h-[400px]">
             <div class="p-5 border-b border-outline-variant bg-surface-container/50">
-                <h3 class="font-headline text-lg font-semibold text-on-surface">Event Timeline</h3>
+                <h3 class="font-headline text-lg font-semibold text-on-surface">Línea de eventos</h3>
             </div>
             <div id="timelineContent" class="p-5 flex-1 overflow-y-auto bg-surface-container-low">
                 <!-- Se llena dinamicamente -->
@@ -151,12 +151,12 @@
     </div>
 </div>
 
-<!-- Node action menu (oculto) -->
+<!-- Menú de acciones del nodo (oculto) -->
 <div id="nodeActionMenu" style="position:absolute;display:none;z-index:60;min-width:180px;background:var(--color-surface-container);border:1px solid var(--color-outline-variant);border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.12);">
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="details">View Details</button>
-    <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="force-election">Force Election</button>
+    <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="force-election">Forzar elección</button>
     <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="disconnect">Toggle Pause</button>
-    <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="refresh">Refresh Node</button>
+    <button class="menu-item w-full text-left px-3 py-2 text-sm" data-action="refresh">Actualizar nodo</button>
 </div>
 {% endblock %}
 {% block scripts %}

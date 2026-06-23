@@ -262,3 +262,31 @@ Como posibles extensiones del proyecto se consideran:
 Proyecto desarrollado para el curso de Sistemas Distribuidos.
 
 Universidad Nacional de San Agustín – 2026.
+
+
+---
+
+## Ejecución rápida con Docker
+
+También se puede levantar todo el sistema con Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Servicios principales:
+
+- Frontend Flask: `http://localhost:5000`
+- Prometheus: `http://localhost:9090`
+- Banco Perú gRPC: `localhost:50051`
+- Banco Chile gRPC: `localhost:50052`
+- Banco Colombia gRPC: `localhost:50053`
+
+Login de prueba:
+
+```txt
+Usuario: admin
+Contraseña: admin
+```
+
+Para más detalle revisar `README_DOCKER.md`.

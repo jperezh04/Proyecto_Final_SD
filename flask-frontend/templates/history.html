@@ -1,79 +1,79 @@
 {% extends "base.html" %}
 
-{% block title %}History{% endblock %}
+{% block title %}Historial{% endblock %}
 
 {% block content %}
 <div class="mb-8 flex justify-between items-end">
     <div>
-        <h2 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">Transaction History</h2>
-        <p class="font-body text-base text-on-surface-variant">Review and manage all inbound and outbound institutional transfers.</p>
+        <h2 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">Historial de transacciones</h2>
+        <p class="font-body text-base text-on-surface-variant">Revisa y controla los movimientos entrantes y salientes de la institución.</p>
     </div>
     <div class="flex gap-2">
         <button class="flex items-center gap-1 px-4 py-2 border border-outline-variant rounded bg-surface-container text-on-surface font-label text-sm hover:bg-surface-container-highest transition-colors">
             <span class="material-symbols-outlined text-[16px]">download</span>
-            Export CSV
+            Exportar CSV
         </button>
         <a href="{{ url_for('transfers') }}" class="flex items-center gap-1 px-4 py-2 border border-transparent rounded bg-primary text-on-primary font-label text-sm hover:bg-primary/90 transition-colors">
             <span class="material-symbols-outlined text-[16px]">add</span>
-            New Transfer
+            Nueva transferencia
         </a>
     </div>
 </div>
 
-<!-- Filters Area -->
+<!-- Área de filtros -->
 <div class="bg-surface-container border border-outline-variant rounded-lg p-4 mb-6 flex flex-wrap items-end gap-4 shadow-sm">
     <div class="flex flex-col gap-1 flex-1 min-w-[200px]">
-        <label class="font-label text-xs text-on-surface-variant">Date Range</label>
+        <label class="font-label text-xs text-on-surface-variant">Rango de fechas</label>
         <div class="relative">
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">calendar_today</span>
             <input class="w-full pl-10 pr-4 py-2 rounded border border-outline-variant bg-surface text-on-surface font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none cursor-pointer"
-                   placeholder="Last 30 Days" type="text" value="{{ filters.date_range | default('Oct 1 - Oct 31, 2023') }}"/>
+                   placeholder="Últimos 30 días" type="text" value="{{ filters.date_range | default('Últimos 30 días') }}"/>
         </div>
     </div>
     <div class="flex flex-col gap-1 flex-1 min-w-[200px]">
-        <label class="font-label text-xs text-on-surface-variant">Bank / Institution</label>
+        <label class="font-label text-xs text-on-surface-variant">Banco / Institución</label>
         <select class="w-full px-4 py-2 rounded border border-outline-variant bg-surface text-on-surface font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
-            <option>All Institutions</option>
+            <option>Todas las instituciones</option>
             {% for bank in banks %}
             <option>{{ bank.name }}</option>
             {% endfor %}
         </select>
     </div>
     <div class="flex flex-col gap-1 flex-1 min-w-[200px]">
-        <label class="font-label text-xs text-on-surface-variant">Transaction Type</label>
+        <label class="font-label text-xs text-on-surface-variant">Tipo de transacción</label>
         <select class="w-full px-4 py-2 rounded border border-outline-variant bg-surface text-on-surface font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
-            <option>All Types</option>
-            <option>Wire Transfer</option>
-            <option>ACH Settlement</option>
-            <option>Internal Sweep</option>
-            <option>FX Settlement</option>
-            <option>Interbank Transfer</option>
-            <option>Local Transfer</option>
+            <option>Todos los tipos</option>
+            <option>Transferencia bancaria</option>
+            <option>Liquidación ACH</option>
+            <option>Movimiento interno</option>
+            <option>Liquidación FX</option>
+            <option>Transferencia interbancaria</option>
+            <option>Transferencia local</option>
         </select>
     </div>
     <div class="flex gap-2">
         <button class="px-4 py-2 rounded border border-outline-variant bg-surface-container text-on-surface font-label text-sm hover:bg-surface-container-highest transition-colors">
-            Clear
+            Limpiar
         </button>
         <button class="px-4 py-2 rounded border border-transparent bg-primary text-on-primary font-label text-sm hover:bg-primary/90 transition-colors">
-            Apply Filters
+            Aplicar filtros
         </button>
     </div>
 </div>
 
-<!-- Data Table Card -->
+<!-- Tabla de datos -->
 <div class="bg-surface-container border border-outline-variant rounded-lg shadow-sm overflow-hidden flex flex-col">
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse min-w-[1000px]">
             <thead>
                 <tr class="bg-surface-container-low border-b border-outline-variant">
-                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Date</th>
-                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Time (UTC)</th>
-                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Type</th>
-                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Source Bank</th>
-                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Destination Bank</th>
-                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap text-right">Amount (USD)</th>
-                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap text-center">Status</th>
+                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Fecha</th>
+                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Hora (UTC)</th>
+                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Tipo</th>
+                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Banco origen</th>
+                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap">Banco destino</th>
+                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap text-right">Monto (USD)</th>
+                    <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap text-center">Estado</th>
                     <th class="px-4 py-3 font-label text-xs text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap"></th>
                 </tr>
             </thead>
@@ -93,7 +93,7 @@
                     </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">
                         <span class="inline-flex items-center px-2 py-1 rounded font-label text-xs font-semibold tracking-wide
-                            {% if tx.status == 'successful' %}
+                            {% if tx.status == 'exitosa' %}
                                 bg-primary/10 text-primary border border-primary/20
                             {% elif tx.status == 'pending' %}
                                 bg-surface-container-high text-on-surface-variant border border-outline-variant
@@ -102,7 +102,7 @@
                             {% elif tx.status == 'rollback' %}
                                 bg-error/10 text-error border border-error/20
                             {% endif %}">
-                            {{ tx.status | capitalize }}
+                            {% if tx.status in ['exitosa', 'successful'] %}Exitosa{% elif tx.status in ['pending', 'pendiente'] %}Pendiente{% elif tx.status == 'rollback' %}Rollback{% elif tx.status in ['error', 'failed'] %}Fallida{% else %}{{ tx.status }}{% endif %}
                         </span>
                     </td>
                     <td class="px-4 py-4 text-right">
@@ -116,9 +116,9 @@
         </table>
     </div>
 
-    <!-- Pagination / Footer -->
+    <!-- Paginación / pie -->
     <div class="px-4 py-3 border-t border-outline-variant bg-surface-container-low flex justify-between items-center">
-        <span class="font-body text-sm text-on-surface-variant">Showing 1-{{ transactions|length }} of {{ total_transactions }} transactions</span>
+        <span class="font-body text-sm text-on-surface-variant">Mostrando 1-{{ transactions|length }} de {{ total_transactions }} movimientos</span>
         <div class="flex gap-1">
             <button class="p-1 rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container-high disabled:opacity-50" disabled>
                 <span class="material-symbols-outlined text-[18px]">chevron_left</span>

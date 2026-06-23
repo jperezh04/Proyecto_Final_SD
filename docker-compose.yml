@@ -1,0 +1,109 @@
+services:
+  bank-peru:
+    build: .
+    container_name: banco-peru
+    working_dir: /app/bank-peru
+    command: python server.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+      BANK_CHILE_ADDR: bank-chile:50052
+      BANK_COLOMBIA_ADDR: bank-colombia:50053
+      METRICS_PORT: "8000"
+    ports:
+      - "50051:50051"
+      - "8000:8000"
+    volumes:
+      - ./bank-peru/data:/app/bank-peru/data
+    networks:
+      - banking-net
+    restart: unless-stopped
+
+  bank-chile:
+    build: .
+    container_name: banco-chile
+    working_dir: /app/bank-chile
+    command: python server.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+      BANK_PERU_ADDR: bank-peru:50051
+      BANK_COLOMBIA_ADDR: bank-colombia:50053
+      METRICS_PORT: "8001"
+    ports:
+      - "50052:50052"
+      - "8001:8001"
+    volumes:
+      - ./bank-chile/data:/app/bank-chile/data
+    networks:
+      - banking-net
+    restart: unless-stopped
+
+  bank-colombia:
+    build: .
+    container_name: banco-colombia
+    working_dir: /app/bank-colombia
+    command: python server.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+      BANK_PERU_ADDR: bank-peru:50051
+      BANK_CHILE_ADDR: bank-chile:50052
+      METRICS_PORT: "8002"
+    ports:
+      - "50053:50053"
+      - "8002:8002"
+    volumes:
+      - ./bank-colombia/data:/app/bank-colombia/data
+    networks:
+      - banking-net
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus-bancos
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - bank-peru
+      - bank-chile
+      - bank-colombia
+    networks:
+      - banking-net
+    restart: unless-stopped
+
+  flask-frontend:
+    build: .
+    container_name: frontend-bancos
+    working_dir: /app/flask-frontend
+    command: python app.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+      FLASK_HOST: 0.0.0.0
+      PORT: "5000"
+      FLASK_DEBUG: "false"
+      SECRET_KEY: proyecto-final-sd
+      BANK_PERU_ADDR: bank-peru:50051
+      BANK_CHILE_ADDR: bank-chile:50052
+      BANK_COLOMBIA_ADDR: bank-colombia:50053
+      PROMETHEUS_URL: http://prometheus:9090
+    ports:
+      - "5000:5000"
+    depends_on:
+      - bank-peru
+      - bank-chile
+      - bank-colombia
+      - prometheus
+    networks:
+      - banking-net
+    restart: unless-stopped
+
+networks:
+  banking-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:

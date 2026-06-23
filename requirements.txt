@@ -1,5 +1,5 @@
-grpcio>=1.60.0
-grpcio-tools>=1.60.0
+grpcio>=1.81.1
+grpcio-tools>=1.81.1
 protobuf>=4.21.0
 flask>=2.3.0
 python-dotenv>=1.0.0

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Error & Recovery{% endblock %}
+{% block title %}Errores y recuperación{% endblock %}
 
 {% block content %}
 <div class="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative overflow-hidden">
     <!-- Fondo sutil con patrón de puntos -->
     <div class="absolute inset-0 pointer-events-none opacity-[0.03]" style="background-image: radial-gradient(#fafafa 1px, transparent 1px); background-size: 24px 24px;"></div>
 
-    <!-- Recovery Card -->
+    <!-- Tarjeta de recuperación -->
     <div class="w-full max-w-3xl bg-surface-container border border-outline-variant shadow-sm rounded-xl p-6 lg:p-12 flex flex-col items-center text-center relative z-10">
         
         <!-- Área de ilustración técnica -->
@@ -47,12 +47,12 @@
         <!-- Badge de estado -->
         <div class="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full mb-6">
             <span class="material-symbols-outlined text-[16px] spin-slow">sync</span>
-            <span class="font-label text-sm tracking-wide">{{ recovery.status_message | default('AUTOMATIC RECOVERY IN PROGRESS') }}</span>
+            <span class="font-label text-sm tracking-wide">{{ recovery.status_message | default('RECUPERACIÓN AUTOMÁTICA EN PROCESO') }}</span>
         </div>
 
-        <h2 class="font-headline text-2xl md:text-3xl text-on-surface font-semibold mb-4">{{ error_title | default('System state restoring') }}</h2>
+        <h2 class="font-headline text-2xl md:text-3xl text-on-surface font-semibold mb-4">{{ error_title | default('Restaurando estado del sistema') }}</h2>
         <p class="font-body text-lg text-on-surface-variant max-w-xl mx-auto mb-8">
-            {{ error_message | default('The coordinator detected a disruption in the network topology. A rollback was executed to maintain ledger integrity, and automatic reconciliation is underway.') }}
+            {{ error_message | default('El coordinador detectó una interrupción en la topología de red. Se ejecutó un rollback para mantener la integridad del libro contable y la reconciliación automática está en proceso.') }}
         </p>
 
         <!-- Detalles del diagnóstico -->
@@ -61,50 +61,50 @@
             <div class="p-4 rounded-lg bg-surface-container-low border border-outline-variant flex flex-col gap-1">
                 <div class="flex items-center gap-2 text-on-surface-variant mb-1">
                     <span class="material-symbols-outlined text-[18px]">dns</span>
-                    <span class="font-label text-xs">{{ failed_node.name | default('Node #12') }} Status</span>
+                    <span class="font-label text-xs">{{ failed_node.name | default('Nodo #12') }} Estado</span>
                 </div>
                 <span class="font-body text-sm text-error flex items-center gap-1">
-                    <span class="w-2 h-2 rounded-full bg-error"></span> {{ failed_node.status | default('Disconnected') }}
+                    <span class="w-2 h-2 rounded-full bg-error"></span> {{ failed_node.status | default('Desconectado') }}
                 </span>
-                <span class="font-body text-sm text-on-surface-variant">Last ping: {{ failed_node.last_ping | default('42s ago') }}</span>
+                <span class="font-body text-sm text-on-surface-variant">Último ping: {{ failed_node.last_ping | default('hace 42s') }}</span>
             </div>
 
             <!-- Evento del coordinador -->
             <div class="p-4 rounded-lg bg-surface-container-low border border-outline-variant flex flex-col gap-1">
                 <div class="flex items-center gap-2 text-on-surface-variant mb-1">
                     <span class="material-symbols-outlined text-[18px]">gavel</span>
-                    <span class="font-label text-xs">Coordinator Event</span>
+                    <span class="font-label text-xs">Evento del coordinador</span>
                 </div>
                 <span class="font-body text-sm text-on-surface flex items-center gap-1">
-                    {{ recovery.trigger | default('Timeout Threshold Reached') }}
+                    {{ recovery.trigger | default('Umbral de espera alcanzado') }}
                 </span>
-                <span class="font-body text-sm text-on-surface-variant">Rollback ID: {{ recovery.rollback_id | default('RBK-992-A') }}</span>
+                <span class="font-body text-sm text-on-surface-variant">ID de rollback: {{ recovery.rollback_id | default('RBK-992-A') }}</span>
             </div>
 
             <!-- Rutina de recuperación -->
             <div class="p-4 rounded-lg bg-primary/5 border border-primary/20 flex flex-col gap-1">
                 <div class="flex items-center gap-2 text-primary mb-1">
                     <span class="material-symbols-outlined text-[18px]">health_and_safety</span>
-                    <span class="font-label text-xs">Recovery Routine</span>
+                    <span class="font-label text-xs">Rutina de recuperación</span>
                 </div>
                 <span class="font-body text-sm text-primary flex items-center gap-1">
-                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse-slow"></span> {{ recovery.routine | default('Synchronizing Ledger') }}
+                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse-slow"></span> {{ recovery.routine | default('Sincronizando libro contable') }}
                 </span>
-                <span class="font-body text-sm text-on-surface-variant">Est. completion: {{ recovery.eta | default('~15s') }}</span>
+                <span class="font-body text-sm text-on-surface-variant">Finalización estimada: {{ recovery.eta | default('~15s') }}</span>
             </div>
         </div>
 
         <!-- Botón de acción -->
         <a href="{{ url_for('dashboard') }}" class="bg-primary text-on-primary px-8 py-3 rounded-lg font-label text-sm flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-sm">
             <span class="material-symbols-outlined text-[18px]">refresh</span>
-            {{ recovery.button_text | default('Retry Connection') }}
+            {{ recovery.button_text | default('Reintentar conexión') }}
         </a>
     </div>
 
     <!-- Pie de página informativo -->
     <div class="mt-6 text-center">
         <p class="font-body text-sm text-on-surface-variant/70">
-            If this issue persists for more than 5 minutes, please contact <a class="text-primary hover:underline" href="#">Platform Engineering</a>.
+            Si el problema persiste por más de 5 minutos, contacta a <a class="text-primary hover:underline" href="#">Ingeniería de plataforma</a>.
         </p>
     </div>
 </div>

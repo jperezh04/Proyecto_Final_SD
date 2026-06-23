@@ -20,18 +20,18 @@ def get_cluster_state():
             else:
                 state = "FOLLOWER"
             nodes.append({
-                "name": f"Node #{node_id} ({bank_name.capitalize()})",
+                "name": f"Nodo #{node_id} ({bank_name.capitalize()})",
                 "short_name": f"N{node_id}",
                 "state": state,
                 "priority": node_id,
-                "uptime": "online",
+                "uptime": "en línea",
                 "topology_x": "50%" if node_id == 3 else ("20%" if node_id == 2 else "80%"),
                 "topology_y": "20%" if node_id == 3 else ("50%" if node_id == 2 else "50%")
             })
         except Exception:
             node_id = bank_ids[bank_name]
             nodes.append({
-                "name": f"Node #{node_id} ({bank_name.capitalize()})",
+                "name": f"Nodo #{node_id} ({bank_name.capitalize()})",
                 "short_name": f"N{node_id}",
                 "state": "DISCONNECTED",
                 "priority": node_id,
@@ -43,16 +43,16 @@ def get_cluster_state():
     if leader_id is not None:
         events.append({
             "type": "election",
-            "time": "Now",
-            "title": f"Leader is Node #{leader_id}",
-            "description": "Cluster stable with current coordinator."
+            "time": "Ahora",
+            "title": f"El líder es el Nodo #{leader_id}",
+            "description": "Clúster estable con el coordinador actual."
         })
     else:
         events.append({
             "type": "failure",
-            "time": "Now",
-            "title": "No leader detected",
-            "description": "Election may be in progress."
+            "time": "Ahora",
+            "title": "No se detectó líder",
+            "description": "La elección puede estar en proceso."
         })
 
     return nodes, events

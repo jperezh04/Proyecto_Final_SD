@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Monitoring{% endblock %}
+{% block title %}Monitoreo{% endblock %}
 
 {% block content %}
 
@@ -13,16 +13,16 @@
 <!-- Context Header -->
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
     <div>
-        <h2 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">System Telemetry</h2>
-        <p class="font-body text-base text-on-surface-variant">Real-time performance and consensus monitoring across institutional nodes.</p>
+        <h2 class="font-headline text-2xl md:text-3xl text-on-background font-semibold mb-2">Telemetría del sistema</h2>
+        <p class="font-body text-base text-on-surface-variant">Monitoreo en tiempo real del rendimiento y consenso entre nodos institucionales.</p>
     </div>
     <div class="flex gap-2">
         <div class="flex items-center bg-surface-container py-1 px-3 rounded-lg border border-outline-variant">
-            <span class="w-2 h-2 rounded-full {{ 'bg-tertiary' if metrics.cluster_health == 'Healthy' else 'bg-error' }} mr-2"></span>
-            <span class="font-body text-sm text-on-surface">Cluster: {{ metrics.cluster_health }}</span>
+            <span class="w-2 h-2 rounded-full {{ 'bg-tertiary' if metrics.cluster_health == 'Saludable' else 'bg-error' }} mr-2"></span>
+            <span class="font-body text-sm text-on-surface">Clúster: {{ metrics.cluster_health }}</span>
         </div>
         <div class="flex items-center bg-surface-container py-1 px-3 rounded-lg border border-outline-variant">
-            <span class="font-body text-sm text-on-surface">Last {{ metrics.time_range }}</span>
+            <span class="font-body text-sm text-on-surface">Último {{ metrics.time_range }}</span>
             <span class="material-symbols-outlined ml-2 text-on-surface-variant text-[16px]">arrow_drop_down</span>
         </div>
     </div>
@@ -35,7 +35,7 @@
         <div class="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
             <span class="material-symbols-outlined text-primary">memory</span>
         </div>
-        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">CPU Load</h3>
+        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">Carga de CPU</h3>
         <div class="flex items-end space-x-2">
             <span class="font-headline text-3xl font-bold text-on-surface">{{ metrics.cpu_load }}</span>
             <span class="font-body text-base text-on-surface-variant mb-1">%</span>
@@ -50,7 +50,7 @@
         <div class="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
             <span class="material-symbols-outlined text-primary">storage</span>
         </div>
-        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">Memory Usage</h3>
+        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">Uso de memoria</h3>
         <div class="flex items-end space-x-2">
             <span class="font-headline text-3xl font-bold text-on-surface">{{ metrics.memory_used }}</span>
             <span class="font-body text-base text-on-surface-variant mb-1">GB</span>
@@ -60,12 +60,12 @@
         </div>
     </div>
 
-    <!-- Latency -->
+    <!-- Latencia -->
     <div class="bg-surface-container rounded-xl p-5 border border-outline-variant shadow-sm relative overflow-hidden group hover:border-error transition-colors">
         <div class="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
             <span class="material-symbols-outlined text-error">speed</span>
         </div>
-        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">Global Latency</h3>
+        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">Latencia global</h3>
         <div class="flex items-end space-x-2">
             <span class="font-headline text-3xl font-bold text-on-surface">{{ metrics.latency_ms }}</span>
             <span class="font-body text-base text-on-surface-variant mb-1">ms</span>
@@ -80,12 +80,12 @@
         </div>
     </div>
 
-    <!-- Throughput -->
+    <!-- Rendimiento -->
     <div class="bg-surface-container rounded-xl p-5 border border-outline-variant shadow-sm relative overflow-hidden group hover:border-primary transition-colors">
         <div class="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
             <span class="material-symbols-outlined text-primary">swap_calls</span>
         </div>
-        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">Throughput</h3>
+        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider mb-2">Rendimiento</h3>
         <div class="flex items-end space-x-2">
             <span class="font-headline text-3xl font-bold text-on-surface">{{ "{:,}".format(metrics.throughput_tps) }}</span>
             <span class="font-body text-base text-on-surface-variant mb-1">tps</span>
@@ -97,12 +97,12 @@
     </div>
 </div>
 
-<!-- Charts Section -->
+<!-- Sección de gráficas -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-    <!-- Transactions per minute -->
+    <!-- Transacciones por minuto -->
     <div class="bg-surface-container rounded-xl p-5 border border-outline-variant shadow-sm flex flex-col h-[300px]">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Transactions per Minute</h3>
+            <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Transacciones por minuto</h3>
             <span class="material-symbols-outlined text-on-surface-variant text-[18px]">more_horiz</span>
         </div>
         <div class="flex-1 relative border border-outline-variant/30 rounded bg-surface-container-high chart-grid flex items-end p-2 space-x-1">
@@ -112,10 +112,10 @@
         </div>
     </div>
 
-    <!-- CPU per Bank -->
+    <!-- CPU por banco -->
     <div class="bg-surface-container rounded-xl p-5 border border-outline-variant shadow-sm flex flex-col h-[300px]">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">CPU Allocation by Node</h3>
+            <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Asignación de CPU por nodo</h3>
             <span class="material-symbols-outlined text-on-surface-variant text-[18px]">more_horiz</span>
         </div>
         <div class="flex-1 relative border border-outline-variant/30 rounded bg-surface-container-high chart-grid flex flex-col justify-around p-3">
@@ -131,13 +131,13 @@
     </div>
 </div>
 
-<!-- Distributed Logs -->
+<!-- Logs distribuidos -->
 <div class="bg-surface-container rounded-xl shadow-md overflow-hidden flex flex-col border border-outline-variant">
     <div class="px-5 py-3 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
-        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Distributed Consensus Logs</h3>
+        <h3 class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Logs de consenso distribuido</h3>
         <div class="flex space-x-2">
-            <button class="px-2 py-1 bg-surface-container-high text-on-surface-variant font-body text-xs rounded hover:bg-surface-container-highest">Filter: Bully</button>
-            <button class="px-2 py-1 bg-surface-container-high text-on-surface-variant font-body text-xs rounded hover:bg-surface-container-highest">Filter: 2PC</button>
+            <button class="px-2 py-1 bg-surface-container-high text-on-surface-variant font-body text-xs rounded hover:bg-surface-container-highest">Filtrar: Bully</button>
+            <button class="px-2 py-1 bg-surface-container-high text-on-surface-variant font-body text-xs rounded hover:bg-surface-container-highest">Filtrar: 2PC</button>
         </div>
     </div>
     <div class="p-4 font-body text-sm leading-relaxed text-on-surface-variant overflow-x-auto h-[250px] overflow-y-auto">

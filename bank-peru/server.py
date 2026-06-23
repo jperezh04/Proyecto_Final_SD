@@ -13,7 +13,7 @@ import time
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 NODE_LABEL = "peru"
-METRICS_PORT = 8000
+METRICS_PORT = int(os.getenv("METRICS_PORT", "8000"))
 
 tx_counter = Counter(
     "bank_transactions_total",
@@ -38,6 +38,10 @@ NODE_ID = "peru"
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ACCOUNTS_DIR = os.path.join(DATA_DIR, "accounts")
 PENDING_DIR = os.path.join(DATA_DIR, "pending")
+TRANSACTIONS_DIR = os.path.join(DATA_DIR, "transactions")
+
+for directory in (ACCOUNTS_DIR, PENDING_DIR, TRANSACTIONS_DIR):
+    os.makedirs(directory, exist_ok=True)
 
 def load_account(account_id):
     path = os.path.join(ACCOUNTS_DIR, f"{account_id}.json")
@@ -45,6 +49,38 @@ def load_account(account_id):
         return None
     with open(path, "r") as f:
         return json.load(f)
+
+def list_accounts(owner=""):
+    accounts = []
+    for filename in sorted(os.listdir(ACCOUNTS_DIR)):
+        if not filename.endswith(".json"):
+            continue
+        with open(os.path.join(ACCOUNTS_DIR, filename), "r") as f:
+            account = json.load(f)
+        if owner and account.get("owner") != owner:
+            continue
+        accounts.append(account)
+    return accounts
+
+def save_transaction(tx_id, data):
+    path = os.path.join(TRANSACTIONS_DIR, f"{tx_id}.json")
+    temp_path = path + ".tmp"
+    with open(temp_path, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(temp_path, path)
+
+def list_transactions(account_id=""):
+    transactions = []
+    for filename in sorted(os.listdir(TRANSACTIONS_DIR)):
+        if not filename.endswith(".json"):
+            continue
+        with open(os.path.join(TRANSACTIONS_DIR, filename), "r") as f:
+            tx = json.load(f)
+        if account_id and account_id not in (tx.get("source_account"), tx.get("dest_account")):
+            continue
+        transactions.append(tx)
+    transactions.sort(key=lambda tx: tx.get("timestamp", ""), reverse=True)
+    return transactions
 
 def save_account(account_id, data):
     path = os.path.join(ACCOUNTS_DIR, f"{account_id}.json")
@@ -69,7 +105,10 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         self.node_id = 3
         self.leader_id = None
         self.state = "FOLLOWER"
-        self.peers = {2: "localhost:50052", 1: "localhost:50053"}
+        self.peers = {
+            2: os.getenv("BANK_CHILE_ADDR", "localhost:50052"),
+            1: os.getenv("BANK_COLOMBIA_ADDR", "localhost:50053"),
+        }
         self.heartbeat_interval = 3
         self.election_timeout = 6
         self.last_heartbeat_from_leader = time.time()
@@ -257,10 +296,59 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 self.account_locks[account_id] = threading.Lock()
             return self.account_locks[account_id]
 
+    def _reject_if_paused(self, context):
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            context.set_details("Node is paused")
+            return True
+        return False
+
+    def _account_proto(self, account):
+        return bank_pb2.Account(
+            account_id=account.get("account_id", ""),
+            owner=account.get("owner", ""),
+            balance=float(account.get("balance", 0)),
+            currency=account.get("currency", ""),
+            type=account.get("type", ""),
+            created_at=account.get("created_at", ""),
+            updated_at=account.get("updated_at", "")
+        )
+
+    def _transaction_proto(self, tx):
+        return bank_pb2.TransactionRecord(
+            transaction_id=tx.get("transaction_id", ""),
+            timestamp=tx.get("timestamp", ""),
+            type=tx.get("type", ""),
+            source_account=tx.get("source_account", ""),
+            dest_account=tx.get("dest_account", ""),
+            amount=float(tx.get("amount", 0)),
+            currency=tx.get("currency", ""),
+            description=tx.get("description", ""),
+            status=tx.get("status", ""),
+            bank_id=tx.get("bank_id", NODE_ID)
+        )
+
+    def ListAccounts(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.AccountsResponse()
+        return bank_pb2.AccountsResponse(
+            accounts=[self._account_proto(account) for account in list_accounts(request.owner)]
+        )
+
+    def GetTransactions(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransactionsResponse()
+        return bank_pb2.TransactionsResponse(
+            transactions=[self._transaction_proto(tx) for tx in list_transactions(request.account_id)]
+        )
+
     def GetBalance(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.BalanceResponse()
         account = load_account(request.account_id)
         if not account:
             context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details("Account not found")
             return bank_pb2.BalanceResponse()
         return bank_pb2.BalanceResponse(
             account_id=request.account_id,
@@ -269,6 +357,10 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
         )
 
     def Deposit(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransactionResponse(success=False, message="Node is paused")
+        if request.amount <= 0:
+            return bank_pb2.TransactionResponse(success=False, message="Amount must be greater than zero")
         lock = self._get_lock(request.account_id)
         with lock:
             account = load_account(request.account_id)
@@ -277,10 +369,22 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             account["balance"] += request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
+            tx_id = str(uuid.uuid4())
+            save_transaction(tx_id, {
+                "transaction_id": tx_id, "timestamp": account["updated_at"], "type": "deposit",
+                "source_account": "", "dest_account": request.account_id, "amount": request.amount,
+                "currency": account.get("currency", ""), "description": "Deposit",
+                "status": "successful", "bank_id": NODE_ID
+            })
+            self._log_event("transaction", "Deposit completed", f"{request.account_id} +{request.amount} {account.get('currency', '')}")
             tx_counter.labels(node=NODE_LABEL, type="deposit").inc()
             return bank_pb2.TransactionResponse(success=True, message="Deposit successful", new_balance=account["balance"])
 
     def Withdraw(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransactionResponse(success=False, message="Node is paused")
+        if request.amount <= 0:
+            return bank_pb2.TransactionResponse(success=False, message="Amount must be greater than zero")
         lock = self._get_lock(request.account_id)
         with lock:
             account = load_account(request.account_id)
@@ -291,10 +395,24 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             account["balance"] -= request.amount
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(request.account_id, account)
+            tx_id = str(uuid.uuid4())
+            save_transaction(tx_id, {
+                "transaction_id": tx_id, "timestamp": account["updated_at"], "type": "withdraw",
+                "source_account": request.account_id, "dest_account": "", "amount": request.amount,
+                "currency": account.get("currency", ""), "description": "Withdrawal",
+                "status": "successful", "bank_id": NODE_ID
+            })
+            self._log_event("transaction", "Withdrawal completed", f"{request.account_id} -{request.amount} {account.get('currency', '')}")
             tx_counter.labels(node=NODE_LABEL, type="withdraw").inc()
             return bank_pb2.TransactionResponse(success=True, message="Withdrawal successful", new_balance=account["balance"])
 
     def TransferLocal(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransferResponse(success=False, message="Node is paused")
+        if request.amount <= 0:
+            return bank_pb2.TransferResponse(success=False, message="Amount must be greater than zero")
+        if request.source_account == request.dest_account:
+            return bank_pb2.TransferResponse(success=False, message="Source and destination accounts must be different")
         ids = sorted([request.source_account, request.dest_account])
         lock1 = self._get_lock(ids[0])
         lock2 = self._get_lock(ids[1])
@@ -313,15 +431,28 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             save_account(request.source_account, src)
             save_account(request.dest_account, dst)
             tx_id = str(uuid.uuid4())
+            save_transaction(tx_id, {
+                "transaction_id": tx_id, "timestamp": now, "type": "transfer_local",
+                "source_account": request.source_account, "dest_account": request.dest_account,
+                "amount": request.amount, "currency": src.get("currency", ""),
+                "description": request.description or "Local transfer",
+                "status": "successful", "bank_id": NODE_ID
+            })
+            self._log_event("transaction", "Local transfer completed", f"{request.source_account} -> {request.dest_account} ({request.amount} {src.get('currency', '')})")
             tx_counter.labels(node=NODE_LABEL, type="transfer_local").inc()
             return bank_pb2.TransferResponse(success=True, message="Local transfer successful", transaction_id=tx_id)
 
     def Prepare(self, request, context):
         start = time.time()
+        if self._reject_if_paused(context):
+            return bank_pb2.PrepareResponse(transaction_id=request.transaction_id, vote=False)
         tx_id = request.transaction_id
         acc_id = request.account_id
         amount = request.amount
         op_type = request.operation_type
+        if amount <= 0 or op_type not in ("debit", "credit"):
+            twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
+            return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
         lock = self._get_lock(acc_id)
         if not lock.acquire(blocking=False):
             twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
@@ -336,8 +467,12 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 lock.release()
                 twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
                 return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
-            self.pending_2pc[tx_id] = {"account_id": acc_id, "amount": amount, "op_type": op_type, "lock": lock}
+            self.pending_2pc[tx_id] = {
+                "account_id": acc_id, "amount": amount, "op_type": op_type,
+                "lock": lock, "currency": account.get("currency", "")
+            }
             save_pending(tx_id, {"account_id": acc_id, "amount": amount, "op_type": op_type,
+                                  "currency": account.get("currency", ""),
                                   "status": "PREPARED", "timestamp": datetime.now(timezone.utc).isoformat()})
             tx_counter.labels(node=NODE_LABEL, type="prepare").inc()
             twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
@@ -349,6 +484,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
 
     def Commit(self, request, context):
         start = time.time()
+        if self._reject_if_paused(context):
+            return bank_pb2.CommitResponse(success=False)
         tx_id = request.transaction_id
         pending = self.pending_2pc.get(tx_id)
         if not pending:
@@ -366,6 +503,16 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 account["balance"] += pending["amount"]
             account["updated_at"] = datetime.now(timezone.utc).isoformat()
             save_account(pending["account_id"], account)
+            save_transaction(tx_id, {
+                "transaction_id": tx_id, "timestamp": account["updated_at"],
+                "type": f"2pc_{pending['op_type']}",
+                "source_account": pending["account_id"] if pending["op_type"] == "debit" else "",
+                "dest_account": pending["account_id"] if pending["op_type"] == "credit" else "",
+                "amount": pending["amount"], "currency": account.get("currency", pending.get("currency", "")),
+                "description": "Interbank transfer via 2PC",
+                "status": "successful", "bank_id": NODE_ID
+            })
+            self._log_event("transaction", "2PC commit applied", f"{pending['op_type']} {pending['account_id']} ({pending['amount']} {account.get('currency', '')})")
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)
@@ -380,6 +527,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
 
     def Abort(self, request, context):
         start = time.time()
+        if self._reject_if_paused(context):
+            return bank_pb2.AbortResponse(success=False)
         tx_id = request.transaction_id
         pending = self.pending_2pc.get(tx_id)
         if not pending:

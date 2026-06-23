@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>Login - Sistema Bancario Distribuido</title>
+    <title>Iniciar sesión - Sistema Bancario Distribuido</title>
 
     <link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/font.css" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -112,7 +112,7 @@
 
         <form class="flex flex-col gap-4" method="POST" action="{{ url_for('do_login') }}">
             <div class="flex flex-col gap-1">
-                <label class="font-label text-sm text-on-surface" for="username">Username</label>
+                <label class="font-label text-sm text-on-surface" for="username">Usuario</label>
                 <div class="relative">
                     <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">person</span>
                     <input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline rounded-lg font-body text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
@@ -122,7 +122,7 @@
 
             <div class="flex flex-col gap-1">
                 <div class="flex justify-between items-center">
-                    <label class="font-label text-sm text-on-surface" for="password">Password</label>
+                    <label class="font-label text-sm text-on-surface" for="password">Contraseña</label>
                 </div>
                 <div class="relative">
                     <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">lock</span>
@@ -134,7 +134,7 @@
             <div class="flex items-center justify-between mt-2">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input class="w-4 h-4 rounded border-outline text-primary focus:ring-primary bg-surface-container-lowest" type="checkbox" name="remember" value="1"/>
-                    <span class="font-body text-sm text-on-surface-variant">Remember me</span>
+                    <span class="font-body text-sm text-on-surface-variant">Recordarme</span>
                 </label>
                 <a class="font-label text-sm text-primary hover:text-primary/80 transition-colors" href="#">Recover Access</a>
             </div>
@@ -147,7 +147,7 @@
     </div>
 
     <div class="mt-6 text-center font-body text-sm text-on-surface-variant">
-        <p>© {{ current_year | default('2024') }} Institutional Node Systems. All rights reserved.</p>
+        <p>© {{ current_year | default('2024') }} Sistemas de nodos institucionales. Todos los derechos reservados.</p>
     </div>
 </main>
 

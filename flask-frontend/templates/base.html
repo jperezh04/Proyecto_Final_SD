@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <meta name="description" content="Distributed banking dashboard for institutional nodes — monitoring, transfers, and coordination." />
+    <meta name="description" content="Panel bancario distribuido para nodos institucionales: monitoreo, transferencias y coordinación." />
     <meta name="theme-color" content="#131b2e" />
     <title>{% block title %}Sistema Bancario Distribuido{% endblock %}</title>
 
@@ -101,24 +101,24 @@
 </head>
 <body class="bg-background text-on-background font-body min-h-screen flex">
 
-    <a class="sr-only focus:not-sr-only absolute top-2 left-2 bg-primary text-on-primary px-3 py-2 rounded z-50" href="#main-content">Skip to main content</a>
+    <a class="sr-only focus:not-sr-only absolute top-2 left-2 bg-primary text-on-primary px-3 py-2 rounded z-50" href="#main-content">Saltar al contenido principal</a>
 
     <!-- ========== SIDEBAR ========== -->
     <nav class="hidden md:flex bg-surface-container-low fixed left-0 top-0 h-full w-[280px] border-r border-outline-variant flex flex-col py-6 z-50">
         <div class="px-6 mb-8">
             <h1 class="font-headline text-xl font-bold text-primary mb-2">Global Finance</h1>
-            <p class="font-label text-sm text-on-surface-variant">Institutional Node #12</p>
+            <p class="font-label text-sm text-on-surface-variant">Nodo institucional #12</p>
         </div>
         <ul class="flex-grow flex flex-col gap-1 mt-6 px-4">
             {% set navigation = [
-                ('dashboard', 'Dashboard', 'dashboard'),
-                ('accounts', 'Accounts', 'account_balance'),
-                ('transfers', 'Transfers', 'swap_horiz'),
-                ('history', 'History', 'history'),
-                ('banks', 'Connected Banks', 'lan'),
-                ('monitoring', 'Monitoring', 'monitoring'),
-                ('coordination', 'Coordination', 'account_tree'),
-                ('error', 'Error & Recovery', 'warning')
+                ('dashboard', 'Inicio', 'dashboard'),
+                ('accounts', 'Cuentas', 'account_balance'),
+                ('transfers', 'Transferencias', 'swap_horiz'),
+                ('history', 'Historial', 'history'),
+                ('banks', 'Bancos conectados', 'lan'),
+                ('monitoring', 'Monitoreo', 'monitoring'),
+                ('coordination', 'Coordinación', 'account_tree'),
+                ('error', 'Errores y recuperación', 'warning')
             ] %}
             {% for route, label, icon in navigation %}
             <li>
@@ -147,7 +147,7 @@
         <!-- Topbar -->
         <header class="bg-surface border-b border-outline-variant shadow-sm flex justify-between items-center w-full h-16 px-6 z-40 sticky top-0">
             <div class="flex items-center gap-4">
-                <div class="font-headline text-xl font-semibold text-primary">Financial Coordinator</div>
+                <div class="font-headline text-xl font-semibold text-primary">Coordinador financiero</div>
             </div>
             <div class="flex items-center gap-4 text-primary">
                 <span class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80">notifications</span>
@@ -158,7 +158,7 @@
                     <span id="themeToggleDot" class="absolute left-1 top-1 w-4 h-4 rounded-full bg-primary transition-transform duration-300"></span>
                 </button>
                 
-                <a href="{{ url_for('logout') }}" class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80 text-primary">account_circle</a>
+                <a href="{{ url_for('logout') }}" class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80 text-primary">logout</a>
             </div>
         </header>
 

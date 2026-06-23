@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Connected Banks{% endblock %}
+{% block title %}Bancos conectados{% endblock %}
 
 {% block content %}
 <div class="relative w-full max-w-5xl mx-auto h-[600px] bg-surface-container rounded-xl p-6 border border-outline-variant shadow-sm">
@@ -50,12 +50,12 @@
                                 bg-surface-container-high text-on-surface-variant
                             {% endif %}">
                     <span class="w-2 h-2 rounded-full {{ 'bg-primary' if banks.peru.status == 'active' else 'bg-outline' }}"></span>
-                    {{ banks.peru.status | capitalize }}
+                    {% if banks.peru.status == 'active' %}Activo{% else %}Inactivo{% endif %}
                 </span>
             </div>
             <div class="space-y-1">
                 <div class="flex justify-between font-body text-sm">
-                    <span class="text-on-surface-variant">Accounts:</span>
+                    <span class="text-on-surface-variant">Cuentas:</span>
                     <span class="text-on-surface">{{ "{:,}".format(banks.peru.accounts) }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm">
@@ -63,7 +63,7 @@
                     <span class="text-on-surface">{{ banks.peru.volume if banks.peru.status == 'active' else '--' }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm pt-2 border-t border-outline-variant">
-                    <span class="text-on-surface-variant">Last Sync:</span>
+                    <span class="text-on-surface-variant">Última sync.:</span>
                     <span class="{{ 'text-primary' if banks.peru.sync_status == 'recent' else 'text-error' }}">{{ banks.peru.last_sync }}</span>
                 </div>
             </div>
@@ -89,12 +89,12 @@
                                 bg-surface-container-high text-on-surface-variant
                             {% endif %}">
                     <span class="w-2 h-2 rounded-full {{ 'bg-primary' if banks.colombia.status == 'active' else 'bg-outline' }}"></span>
-                    {{ banks.colombia.status | capitalize }}
+                    {% if banks.colombia.status == 'active' %}Activo{% else %}Inactivo{% endif %}
                 </span>
             </div>
             <div class="space-y-1">
                 <div class="flex justify-between font-body text-sm">
-                    <span class="text-on-surface-variant">Accounts:</span>
+                    <span class="text-on-surface-variant">Cuentas:</span>
                     <span class="text-on-surface">{{ "{:,}".format(banks.colombia.accounts) }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm">
@@ -102,7 +102,7 @@
                     <span class="text-on-surface">{{ banks.colombia.volume if banks.colombia.status == 'active' else '--' }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm pt-2 border-t border-outline-variant">
-                    <span class="text-on-surface-variant">Last Sync:</span>
+                    <span class="text-on-surface-variant">Última sync.:</span>
                     <span class="{{ 'text-primary' if banks.colombia.sync_status == 'recent' else 'text-error' }}">{{ banks.colombia.last_sync }}</span>
                 </div>
             </div>
@@ -111,10 +111,10 @@
 
     <!-- Nodo: Chile -->
     <div class="absolute left-[75%] top-[60%] -translate-x-1/2 -translate-y-1/2 z-10 w-64 group cursor-pointer">
-        <div class="bg-surface-container-high border border-outline-variant rounded-xl p-4 shadow-sm transition-all group-hover:border-outline opacity-60
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-4 shadow-sm transition-all group-hover:border-primary group-hover:shadow-md
                     {{ 'opacity-60' if banks.chile.status != 'active' else '' }}">
             <div class="flex justify-between items-center mb-3 border-b border-outline-variant pb-2">
-                <h3 class="font-headline text-base font-semibold text-on-surface-variant flex items-center gap-2">
+                <h3 class="font-headline text-base font-semibold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined {{ 'text-primary' if banks.chile.status == 'active' else 'text-on-surface-variant' }}"
                           style="font-variation-settings: 'FILL' 1;">
                         {{ 'public' if banks.chile.status == 'active' else 'public_off' }}
@@ -125,24 +125,24 @@
                             {% if banks.chile.status == 'active' %}
                                 bg-primary/10 text-primary
                             {% else %}
-                                bg-surface-container-highest text-on-surface-variant
+                                bg-surface-container-high text-on-surface-variant
                             {% endif %}">
                     <span class="w-2 h-2 rounded-full {{ 'bg-primary' if banks.chile.status == 'active' else 'bg-outline' }}"></span>
-                    {{ banks.chile.status | capitalize }}
+                    {% if banks.chile.status == 'active' %}Activo{% else %}Inactivo{% endif %}
                 </span>
             </div>
             <div class="space-y-1">
                 <div class="flex justify-between font-body text-sm">
-                    <span class="text-on-surface-variant">Accounts:</span>
-                    <span class="text-on-surface-variant">{{ "{:,}".format(banks.chile.accounts) }}</span>
+                    <span class="text-on-surface-variant">Cuentas:</span>
+                    <span class="text-on-surface">{{ "{:,}".format(banks.chile.accounts) }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm">
                     <span class="text-on-surface-variant">Vol (24h):</span>
-                    <span class="text-on-surface-variant">{{ banks.chile.volume if banks.chile.status == 'active' else '--' }}</span>
+                    <span class="text-on-surface">{{ banks.chile.volume if banks.chile.status == 'active' else '--' }}</span>
                 </div>
                 <div class="flex justify-between font-body text-sm pt-2 border-t border-outline-variant">
-                    <span class="text-on-surface-variant">Last Sync:</span>
-                    <span class="text-error">{{ banks.chile.last_sync }}</span>
+                    <span class="text-on-surface-variant">Última sync.:</span>
+                    <span class="{{ 'text-primary' if banks.chile.sync_status == 'recent' else 'text-error' }}">{{ banks.chile.last_sync }}</span>
                 </div>
             </div>
         </div>
@@ -152,11 +152,11 @@
     <div class="absolute bottom-4 left-4 bg-surface-container-low border border-outline-variant rounded-lg p-2 flex gap-4 shadow-sm">
         <div class="flex items-center gap-1">
             <span class="w-3 h-3 rounded-full bg-primary"></span>
-            <span class="font-label text-xs text-on-surface-variant">Active Connection</span>
+            <span class="font-label text-xs text-on-surface-variant">Conexión activa</span>
         </div>
         <div class="flex items-center gap-1">
             <span class="w-3 h-3 rounded-full bg-outline"></span>
-            <span class="font-label text-xs text-on-surface-variant">Inactive/Reconnecting</span>
+            <span class="font-label text-xs text-on-surface-variant">Inactivo / Reconectando</span>
         </div>
     </div>
 </div>

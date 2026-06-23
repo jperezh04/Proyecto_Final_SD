@@ -5,7 +5,7 @@ import warnings
 
 import bank_pb2 as bank__pb2
 
-GRPC_GENERATED_VERSION = '1.81.0'
+GRPC_GENERATED_VERSION = '1.81.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -38,6 +38,16 @@ class BankServiceStub:
                 '/bank.BankService/GetBalance',
                 request_serializer=bank__pb2.BalanceRequest.SerializeToString,
                 response_deserializer=bank__pb2.BalanceResponse.FromString,
+                _registered_method=True)
+        self.ListAccounts = channel.unary_unary(
+                '/bank.BankService/ListAccounts',
+                request_serializer=bank__pb2.AccountsRequest.SerializeToString,
+                response_deserializer=bank__pb2.AccountsResponse.FromString,
+                _registered_method=True)
+        self.GetTransactions = channel.unary_unary(
+                '/bank.BankService/GetTransactions',
+                request_serializer=bank__pb2.TransactionsRequest.SerializeToString,
+                response_deserializer=bank__pb2.TransactionsResponse.FromString,
                 _registered_method=True)
         self.Deposit = channel.unary_unary(
                 '/bank.BankService/Deposit',
@@ -100,6 +110,18 @@ class BankServiceServicer:
     """Missing associated documentation comment in .proto file."""
 
     def GetBalance(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListAccounts(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetTransactions(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -178,6 +200,16 @@ def add_BankServiceServicer_to_server(servicer, server):
                     servicer.GetBalance,
                     request_deserializer=bank__pb2.BalanceRequest.FromString,
                     response_serializer=bank__pb2.BalanceResponse.SerializeToString,
+            ),
+            'ListAccounts': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListAccounts,
+                    request_deserializer=bank__pb2.AccountsRequest.FromString,
+                    response_serializer=bank__pb2.AccountsResponse.SerializeToString,
+            ),
+            'GetTransactions': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetTransactions,
+                    request_deserializer=bank__pb2.TransactionsRequest.FromString,
+                    response_serializer=bank__pb2.TransactionsResponse.SerializeToString,
             ),
             'Deposit': grpc.unary_unary_rpc_method_handler(
                     servicer.Deposit,
@@ -262,6 +294,60 @@ class BankService:
             '/bank.BankService/GetBalance',
             bank__pb2.BalanceRequest.SerializeToString,
             bank__pb2.BalanceResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListAccounts(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/bank.BankService/ListAccounts',
+            bank__pb2.AccountsRequest.SerializeToString,
+            bank__pb2.AccountsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetTransactions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/bank.BankService/GetTransactions',
+            bank__pb2.TransactionsRequest.SerializeToString,
+            bank__pb2.TransactionsResponse.FromString,
             options,
             channel_credentials,
             insecure,

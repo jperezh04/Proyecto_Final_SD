@@ -4,12 +4,16 @@ import bank_pb2
 import bank_pb2_grpc
 from bank_client import BANKS, get_stub
 
-def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_account, amount):
+def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_account, amount, description=""):
     """
     Ejecuta una transferencia interbancaria usando 2PC.
     Retorna (success: bool, message: str, tx_id: str)
     """
     tx_id = str(uuid.uuid4())
+    if amount <= 0:
+        return False, "Amount must be greater than zero", tx_id
+    if source_bank == dest_bank or source_account == dest_account:
+        return False, "Interbank transfer requires different banks and accounts", tx_id
     print(f"\n Iniciando 2PC {tx_id}: {source_account} ({source_bank}) -> {dest_account} ({dest_bank}) por {amount}")
 
     # 1. Obtener stubs de ambos bancos
