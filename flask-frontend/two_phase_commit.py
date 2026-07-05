@@ -1,27 +1,88 @@
 import grpc
 import uuid
 import bank_pb2
-import bank_pb2_grpc
-from bank_client import BANKS, get_stub
+from bank_client import get_stub
+
+# Tipo de cambio interno del sistema.
+# Base: 1 USD = X moneda local. Es fijo para que el entorno sea reproducible.
+EXCHANGE_RATES = {
+    "USD": 1.0,
+    "PEN": 3.75,
+    "CLP": 950.0,
+    "COP": 4000.0,
+}
+
+
+def convert_amount(amount, source_currency, dest_currency):
+    source_currency = (source_currency or "").upper()
+    dest_currency = (dest_currency or "").upper()
+    if source_currency == dest_currency:
+        return round(float(amount), 2), 1.0
+    if source_currency not in EXCHANGE_RATES or dest_currency not in EXCHANGE_RATES:
+        raise ValueError(f"Moneda no soportada: {source_currency} -> {dest_currency}")
+    usd_amount = float(amount) / EXCHANGE_RATES[source_currency]
+    converted = usd_amount * EXCHANGE_RATES[dest_currency]
+    exchange_rate = EXCHANGE_RATES[dest_currency] / EXCHANGE_RATES[source_currency]
+    return round(converted, 2), round(exchange_rate, 6)
+
+
+def _get_balance_snapshot(stub, account_id):
+    response = stub.GetBalance(bank_pb2.BalanceRequest(account_id=account_id), timeout=5)
+    return {
+        "account_id": response.account_id,
+        "balance": float(response.balance),
+        "currency": response.currency,
+    }
+
 
 def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_account, amount, description=""):
     """
     Ejecuta una transferencia interbancaria usando 2PC.
-    Retorna (success: bool, message: str, tx_id: str)
+
+    El monto recibido se interpreta en la moneda de la cuenta origen.
+    Si la cuenta destino usa otra moneda, se acredita el monto convertido con
+    el tipo de cambio interno del sistema.
+
+    Retorna: (success: bool, message: str, tx_id: str, conversion: dict)
     """
     tx_id = str(uuid.uuid4())
+    empty_conversion = {
+        "source_amount": round(float(amount or 0), 2),
+        "source_currency": "",
+        "destination_amount": round(float(amount or 0), 2),
+        "destination_currency": "",
+        "exchange_rate": 1.0,
+        "conversion_applied": False,
+    }
+
     if amount <= 0:
-        return False, "El monto debe ser mayor que cero", tx_id
+        return False, "El monto debe ser mayor que cero", tx_id, empty_conversion
     if source_bank == dest_bank or source_account == dest_account:
-        return False, "Interbank transfer requires different banks and accounts", tx_id
-    print(f"\n Iniciando 2PC {tx_id}: {source_account} ({source_bank}) -> {dest_account} ({dest_bank}) por {amount}")
+        return False, "La transferencia interbancaria requiere bancos y cuentas distintas", tx_id, empty_conversion
+
+    print(f"\nIniciando 2PC {tx_id}: {source_account} ({source_bank}) -> {dest_account} ({dest_bank}) por {amount}")
 
     # 1. Obtener stubs de ambos bancos
     try:
         src_stub = get_stub(source_bank)
         dst_stub = get_stub(dest_bank)
+        source_snapshot = _get_balance_snapshot(src_stub, source_account)
+        dest_snapshot = _get_balance_snapshot(dst_stub, dest_account)
+        destination_amount, exchange_rate = convert_amount(
+            amount,
+            source_snapshot["currency"],
+            dest_snapshot["currency"],
+        )
+        conversion = {
+            "source_amount": round(float(amount), 2),
+            "source_currency": source_snapshot["currency"],
+            "destination_amount": destination_amount,
+            "destination_currency": dest_snapshot["currency"],
+            "exchange_rate": exchange_rate,
+            "conversion_applied": source_snapshot["currency"] != dest_snapshot["currency"],
+        }
     except Exception as e:
-        return False, f"Error conectando a los bancos: {e}", tx_id
+        return False, f"Error conectando a los bancos o calculando conversión: {e}", tx_id, empty_conversion
 
     # 2. Fase PREPARE
     print("Enviando PREPARE...")
@@ -37,12 +98,11 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
         dst_prep = dst_stub.Prepare(bank_pb2.PrepareRequest(
             transaction_id=tx_id,
             account_id=dest_account,
-            amount=amount,
+            amount=destination_amount,
             operation_type="credit"
         ), timeout=5)
     except grpc.RpcError as e:
         print(f"Error en PREPARE: {e.code()}")
-        # Si uno fallo, abortamos el otro
         if src_prep is not None and src_prep.vote:
             try:
                 src_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
@@ -53,11 +113,11 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
                 dst_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
             except Exception:
                 pass
-        return False, f"Falló la fase de preparación: {e.code()}", tx_id
+        return False, f"Falló la fase de preparación: {e.code()}", tx_id, conversion
 
     # 3. Verificar votos
     if not (src_prep.vote and dst_prep.vote):
-        print("Uno de los bancos voto ABORT")
+        print("Uno de los bancos votó ABORT")
         try:
             src_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
         except Exception:
@@ -66,7 +126,7 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
             dst_stub.Abort(bank_pb2.AbortRequest(transaction_id=tx_id))
         except Exception:
             pass
-        return False, "Transaccion abortada por uno de los bancos", tx_id
+        return False, "Transacción abortada por uno de los bancos", tx_id, conversion
 
     # 4. Fase COMMIT
     print("Todos votaron PREPARED, enviando COMMIT...")
@@ -74,10 +134,17 @@ def execute_interbank_transfer(source_bank, source_account, dest_bank, dest_acco
         src_commit = src_stub.Commit(bank_pb2.CommitRequest(transaction_id=tx_id), timeout=5)
         dst_commit = dst_stub.Commit(bank_pb2.CommitRequest(transaction_id=tx_id), timeout=5)
         if src_commit.success and dst_commit.success:
-            print(f"Transaccion {tx_id} completada exitosamente")
-            return True, "Transferencia completada con exito", tx_id
-        else:
-            return False, "Fallo en la fase de commit", tx_id
+            print(f"Transacción {tx_id} completada exitosamente")
+            if conversion["conversion_applied"]:
+                msg = (
+                    "Transferencia completada con conversión: "
+                    f"{conversion['source_amount']:,.2f} {conversion['source_currency']} -> "
+                    f"{conversion['destination_amount']:,.2f} {conversion['destination_currency']}"
+                )
+            else:
+                msg = "Transferencia completada correctamente"
+            return True, msg, tx_id, conversion
+        return False, "Fallo en la fase de confirmación", tx_id, conversion
     except Exception as e:
         print(f"Error en COMMIT: {e}")
-        return False, f"Error al confirmar la transacción: {e}", tx_id
+        return False, f"Error al confirmar la transacción: {e}", tx_id, conversion

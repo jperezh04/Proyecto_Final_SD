@@ -1,9 +1,9 @@
 {
   "account_id": "CO001",
-  "owner": "cliente_colombia",
-  "balance": 29000.0,
+  "owner": "camila_colombia_solo",
+  "balance": 7600000.0,
   "currency": "COP",
   "type": "ahorros",
-  "created_at": "2026-06-01T06:57:54.105949",
-  "updated_at": "2026-06-01T11:43:52.497628+00:00"
+  "created_at": "2026-07-01T09:00:00+00:00",
+  "updated_at": "2026-07-01T09:00:00+00:00"
 }

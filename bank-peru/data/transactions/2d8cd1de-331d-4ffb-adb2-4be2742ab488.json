@@ -1,0 +1,12 @@
+{
+  "transaction_id": "2d8cd1de-331d-4ffb-adb2-4be2742ab488",
+  "timestamp": "2026-07-05T03:04:27.438940+00:00",
+  "type": "2pc_debit",
+  "source_account": "PE002",
+  "dest_account": "",
+  "amount": 1000.0,
+  "currency": "USD",
+  "description": "Interbank transfer via 2PC",
+  "status": "successful",
+  "bank_id": "peru"
+}

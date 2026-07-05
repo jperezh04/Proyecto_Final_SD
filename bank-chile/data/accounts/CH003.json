@@ -1,9 +1,9 @@
 {
   "account_id": "CH003",
-  "owner": "cliente_compartido",
-  "balance": 5000.0,
+  "owner": "bruno_chile_solo",
+  "balance": 980000.0,
   "currency": "CLP",
-  "type": "ahorros",
-  "created_at": "2026-06-01T06:48:49.183876",
-  "updated_at": "2026-06-01T06:48:49.183876"
+  "type": "plazo fijo",
+  "created_at": "2026-07-01T09:00:00+00:00",
+  "updated_at": "2026-07-01T09:00:00+00:00"
 }

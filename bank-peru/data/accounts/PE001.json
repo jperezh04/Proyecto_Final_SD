@@ -1,9 +1,9 @@
 {
   "account_id": "PE001",
-  "owner": "cliente_peru",
-  "balance": 0.0,
+  "owner": "ana_peru_solo",
+  "balance": 18500.0,
   "currency": "PEN",
   "type": "ahorros",
-  "created_at": "2026-06-01T06:48:18.298266",
-  "updated_at": "2026-06-01T11:46:14.917469+00:00"
+  "created_at": "2026-07-01T09:00:00+00:00",
+  "updated_at": "2026-07-01T09:00:00+00:00"
 }

@@ -72,14 +72,14 @@ def get_accounts_by_bank(owner=""):
 
 
 def get_all_accounts_for_user(user_id=None):
-    """Obtiene todas las cuentas reales de todos los bancos.
+    """Obtiene cuentas reales desde todos los bancos.
 
-    Por ahora no filtramos por usuario porque el login todavía no está conectado a
-    una base de usuarios real. Cuando exista autenticación real, se debe enviar el
-    owner correspondiente al RPC ListAccounts.
+    - Admin / vacío: devuelve todas las cuentas para monitoreo y demo general.
+    - Cliente: filtra por owner, simulando acceso real del usuario a sus cuentas.
     """
+    owner = (user_id or "").strip()
     accounts = []
-    for bank_accounts in get_accounts_by_bank(owner="").values():
+    for bank_accounts in get_accounts_by_bank(owner=owner).values():
         accounts.extend(bank_accounts)
     return accounts
 
@@ -156,7 +156,7 @@ def get_all_transactions(account_id=""):
             "amount": tx["amount"],
             "currency": tx["currency"],
             "description": tx["description"],
-            "status": tx["status"],
+            "status": {"successful": "exitosa", "success": "exitosa", "failed": "fallida"}.get(tx["status"], tx["status"]),
         })
 
     combined.sort(key=lambda tx: tx.get("timestamp", ""), reverse=True)

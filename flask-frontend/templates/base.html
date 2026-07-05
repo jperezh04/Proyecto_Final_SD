@@ -107,19 +107,30 @@
     <nav class="hidden md:flex bg-surface-container-low fixed left-0 top-0 h-full w-[280px] border-r border-outline-variant flex flex-col py-6 z-50">
         <div class="px-6 mb-8">
             <h1 class="font-headline text-xl font-bold text-primary mb-2">Global Finance</h1>
-            <p class="font-label text-sm text-on-surface-variant">Nodo institucional #12</p>
+            <p class="font-label text-sm text-on-surface-variant">
+                {% if user and user.user_type == 'client' %}Banca en línea{% else %}Panel institucional{% endif %}
+            </p>
         </div>
         <ul class="flex-grow flex flex-col gap-1 mt-6 px-4">
-            {% set navigation = [
-                ('dashboard', 'Inicio', 'dashboard'),
-                ('accounts', 'Cuentas', 'account_balance'),
-                ('transfers', 'Transferencias', 'swap_horiz'),
-                ('history', 'Historial', 'history'),
-                ('banks', 'Bancos conectados', 'lan'),
-                ('monitoring', 'Monitoreo', 'monitoring'),
-                ('coordination', 'Coordinación', 'account_tree'),
-                ('error', 'Errores y recuperación', 'warning')
-            ] %}
+            {% if user and user.user_type == 'client' %}
+                {% set navigation = [
+                    ('transfers', 'Transferir', 'swap_horiz'),
+                    ('accounts', 'Mis cuentas', 'account_balance'),
+                    ('history', 'Movimientos', 'history')
+                ] %}
+            {% else %}
+                {% set navigation = [
+                    ('dashboard', 'Inicio', 'dashboard'),
+                    ('accounts', 'Cuentas', 'account_balance'),
+                    ('clients', 'Clientes', 'groups'),
+                    ('transfers', 'Transferencias', 'swap_horiz'),
+                    ('history', 'Historial', 'history'),
+                    ('banks', 'Bancos conectados', 'lan'),
+                    ('monitoring', 'Monitoreo', 'monitoring'),
+                    ('coordination', 'Coordinación', 'account_tree'),
+                    ('error', 'Errores y recuperación', 'warning')
+                ] %}
+            {% endif %}
             {% for route, label, icon in navigation %}
             <li>
                 <a href="{{ url_for(route) }}"
@@ -135,9 +146,13 @@
             </li>
             {% endfor %}
         </ul>
-        <div class="px-6 mt-4 flex items-center gap-4">
-            <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden">
-                <span class="material-symbols-outlined text-on-surface-variant">person</span>
+        <div class="px-6 mt-4 flex items-center gap-3 border-t border-outline-variant pt-4">
+            <div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center overflow-hidden text-on-primary-container">
+                <span class="material-symbols-outlined">person</span>
+            </div>
+            <div class="min-w-0">
+                <p class="font-label text-sm text-on-surface truncate">{{ user.name if user else 'Usuario' }}</p>
+                <p class="font-body text-xs text-on-surface-variant truncate">{{ user.role if user else 'Sesión activa' }}</p>
             </div>
         </div>
     </nav>
@@ -147,11 +162,15 @@
         <!-- Topbar -->
         <header class="bg-surface border-b border-outline-variant shadow-sm flex justify-between items-center w-full h-16 px-6 z-40 sticky top-0">
             <div class="flex items-center gap-4">
-                <div class="font-headline text-xl font-semibold text-primary">Coordinador financiero</div>
+                <div class="font-headline text-xl font-semibold text-primary">
+                    {% if user and user.user_type == 'client' %}Banca en línea{% else %}Coordinador financiero{% endif %}
+                </div>
             </div>
             <div class="flex items-center gap-4 text-primary">
                 <span class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80">notifications</span>
+                {% if not user or user.user_type != 'client' %}
                 <span class="material-symbols-outlined cursor-pointer hover:bg-surface-container transition-colors rounded-full p-2 opacity-80">hub</span>
+                {% endif %}
                 
                 <!-- Toggle de tema -->
                 <button id="themeToggle" class="w-10 h-6 rounded-full bg-surface-container-high border border-outline-variant relative transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary" onclick="toggleTheme()" title="Cambiar tema">

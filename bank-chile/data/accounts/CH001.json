@@ -1,9 +1,9 @@
 {
   "account_id": "CH001",
-  "owner": "cliente_chile",
-  "balance": 20000.0,
+  "owner": "bruno_chile_solo",
+  "balance": 2100000.0,
   "currency": "CLP",
   "type": "ahorros",
-  "created_at": "2026-06-01T06:48:49.181948",
-  "updated_at": "2026-06-01T06:48:49.181948"
+  "created_at": "2026-07-01T09:00:00+00:00",
+  "updated_at": "2026-07-01T09:00:00+00:00"
 }

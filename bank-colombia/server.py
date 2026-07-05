@@ -43,6 +43,28 @@ TRANSACTIONS_DIR = os.path.join(DATA_DIR, "transactions")
 for directory in (ACCOUNTS_DIR, PENDING_DIR, TRANSACTIONS_DIR):
     os.makedirs(directory, exist_ok=True)
 
+# Tipo de cambio interno del sistema.
+# Se usa una tabla fija para que el entorno sea reproducible y no dependa de Internet.
+# Base: 1 USD = X moneda local.
+EXCHANGE_RATES = {
+    "USD": 1.0,
+    "PEN": 3.75,
+    "CLP": 950.0,
+    "COP": 4000.0,
+}
+
+def convert_amount(amount, source_currency, dest_currency):
+    source_currency = (source_currency or "").upper()
+    dest_currency = (dest_currency or "").upper()
+    if source_currency == dest_currency:
+        return round(float(amount), 2), 1.0
+    if source_currency not in EXCHANGE_RATES or dest_currency not in EXCHANGE_RATES:
+        raise ValueError(f"Moneda no soportada: {source_currency} -> {dest_currency}")
+    usd_amount = float(amount) / EXCHANGE_RATES[source_currency]
+    converted = usd_amount * EXCHANGE_RATES[dest_currency]
+    exchange_rate = EXCHANGE_RATES[dest_currency] / EXCHANGE_RATES[source_currency]
+    return round(converted, 2), round(exchange_rate, 6)
+
 def load_account(account_id):
     path = os.path.join(ACCOUNTS_DIR, f"{account_id}.json")
     if not os.path.exists(path):
@@ -373,10 +395,10 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             save_transaction(tx_id, {
                 "transaction_id": tx_id, "timestamp": account["updated_at"], "type": "deposit",
                 "source_account": "", "dest_account": request.account_id, "amount": request.amount,
-                "currency": account.get("currency", ""), "description": "Deposit",
-                "status": "successful", "bank_id": NODE_ID
+                "currency": account.get("currency", ""), "description": "Depósito",
+                "status": "exitosa", "bank_id": NODE_ID
             })
-            self._log_event("transaction", "Deposit completed", f"{request.account_id} +{request.amount} {account.get('currency', '')}")
+            self._log_event("transaction", "Depósito completado", f"{request.account_id} +{request.amount} {account.get('currency', '')}")
             tx_counter.labels(node=NODE_LABEL, type="deposit").inc()
             return bank_pb2.TransactionResponse(success=True, message="Depósito realizado correctamente", new_balance=account["balance"])
 
@@ -399,10 +421,10 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             save_transaction(tx_id, {
                 "transaction_id": tx_id, "timestamp": account["updated_at"], "type": "withdraw",
                 "source_account": request.account_id, "dest_account": "", "amount": request.amount,
-                "currency": account.get("currency", ""), "description": "Withdrawal",
-                "status": "successful", "bank_id": NODE_ID
+                "currency": account.get("currency", ""), "description": "Retiro",
+                "status": "exitosa", "bank_id": NODE_ID
             })
-            self._log_event("transaction", "Withdrawal completed", f"{request.account_id} -{request.amount} {account.get('currency', '')}")
+            self._log_event("transaction", "Retiro completado", f"{request.account_id} -{request.amount} {account.get('currency', '')}")
             tx_counter.labels(node=NODE_LABEL, type="withdraw").inc()
             return bank_pb2.TransactionResponse(success=True, message="Retiro realizado correctamente", new_balance=account["balance"])
 
@@ -423,22 +445,43 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 return bank_pb2.TransferResponse(success=False, message="Cuentas inválidas")
             if src["balance"] < request.amount:
                 return bank_pb2.TransferResponse(success=False, message="Fondos insuficientes")
+
+            src_currency = src.get("currency", "")
+            dst_currency = dst.get("currency", "")
+            try:
+                destination_amount, exchange_rate = convert_amount(request.amount, src_currency, dst_currency)
+            except ValueError as exc:
+                return bank_pb2.TransferResponse(success=False, message=str(exc))
+
             src["balance"] -= request.amount
-            dst["balance"] += request.amount
+            dst["balance"] += destination_amount
             now = datetime.now(timezone.utc).isoformat()
             src["updated_at"] = now
             dst["updated_at"] = now
             save_account(request.source_account, src)
             save_account(request.dest_account, dst)
             tx_id = str(uuid.uuid4())
+
+            description = request.description or "Transferencia local"
+            if src_currency != dst_currency:
+                description = (
+                    f"{description} | Conversión aplicada: "
+                    f"{request.amount:,.2f} {src_currency} -> {destination_amount:,.2f} {dst_currency} "
+                    f"(TC {exchange_rate})"
+                )
+
             save_transaction(tx_id, {
                 "transaction_id": tx_id, "timestamp": now, "type": "transfer_local",
                 "source_account": request.source_account, "dest_account": request.dest_account,
-                "amount": request.amount, "currency": src.get("currency", ""),
-                "description": request.description or "Local transfer",
-                "status": "successful", "bank_id": NODE_ID
+                "amount": request.amount, "currency": src_currency,
+                "destination_amount": destination_amount, "destination_currency": dst_currency,
+                "exchange_rate": exchange_rate,
+                "description": description,
+                "status": "exitosa", "bank_id": NODE_ID
             })
-            self._log_event("transaction", "Local transfer completed", f"{request.source_account} -> {request.dest_account} ({request.amount} {src.get('currency', '')})")
+            self._log_event("transaction", "Transferencia local completada",
+                            f"{request.source_account} -> {request.dest_account} "
+                            f"({request.amount:,.2f} {src_currency} / {destination_amount:,.2f} {dst_currency})")
             tx_counter.labels(node=NODE_LABEL, type="transfer_local").inc()
             return bank_pb2.TransferResponse(success=True, message="Transferencia local realizada correctamente", transaction_id=tx_id)
 
@@ -510,7 +553,7 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
                 "dest_account": pending["account_id"] if pending["op_type"] == "credit" else "",
                 "amount": pending["amount"], "currency": account.get("currency", pending.get("currency", "")),
                 "description": "Interbank transfer via 2PC",
-                "status": "successful", "bank_id": NODE_ID
+                "status": "exitosa", "bank_id": NODE_ID
             })
             self._log_event("transaction", "Confirmación 2PC aplicada", f"{pending['op_type']} {pending['account_id']} ({pending['amount']} {account.get('currency', '')})")
             pending["lock"].release()

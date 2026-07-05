@@ -1,9 +1,9 @@
 {
   "account_id": "PE002",
-  "owner": "cliente_peru",
-  "balance": 20000.0,
+  "owner": "ana_peru_solo",
+  "balance": 7200.5,
   "currency": "USD",
   "type": "corriente",
-  "created_at": "2026-06-01T06:48:18.299551",
-  "updated_at": "2026-06-01T11:46:14.917469+00:00"
+  "created_at": "2026-07-01T09:00:00+00:00",
+  "updated_at": "2026-07-01T09:00:00+00:00"
 }

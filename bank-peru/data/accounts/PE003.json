@@ -1,9 +1,9 @@
 {
   "account_id": "PE003",
-  "owner": "cliente_compartido",
-  "balance": 10000.0,
+  "owner": "ana_peru_solo",
+  "balance": 12400.75,
   "currency": "PEN",
-  "type": "ahorros",
-  "created_at": "2026-06-01T06:48:18.300821",
-  "updated_at": "2026-06-01T06:48:18.300821"
+  "type": "plazo fijo",
+  "created_at": "2026-07-01T09:00:00+00:00",
+  "updated_at": "2026-07-01T09:00:00+00:00"
 }

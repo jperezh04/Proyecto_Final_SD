@@ -1,0 +1,12 @@
+{
+  "transaction_id": "2d8cd1de-331d-4ffb-adb2-4be2742ab488",
+  "timestamp": "2026-07-05T03:04:27.487590+00:00",
+  "type": "2pc_credit",
+  "source_account": "",
+  "dest_account": "CH005",
+  "amount": 1000.0,
+  "currency": "CLP",
+  "description": "Interbank transfer via 2PC",
+  "status": "successful",
+  "bank_id": "chile"
+}

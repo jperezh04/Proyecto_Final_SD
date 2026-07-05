@@ -4,188 +4,203 @@
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Iniciar sesión - Sistema Bancario Distribuido</title>
-
     <link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/font.css" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-
-    <!-- CSS profesional externo -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "tertiary-container": "var(--color-tertiary-container)",
-                        "outline": "var(--color-outline)",
-                        "on-primary-container": "var(--color-on-primary-container)",
-                        "on-secondary": "var(--color-on-secondary)",
-                        "on-tertiary-fixed": "var(--color-on-tertiary-fixed)",
-                        "on-primary-fixed": "var(--color-on-primary-fixed)",
-                        "surface-bright": "var(--color-surface-bright)",
-                        "surface": "var(--color-surface)",
-                        "secondary-fixed-dim": "var(--color-secondary-fixed-dim)",
-                        "surface-dim": "var(--color-surface-dim)",
-                        "surface-container-low": "var(--color-surface-container-low)",
-                        "background": "var(--color-background)",
-                        "tertiary-fixed": "var(--color-tertiary-fixed)",
-                        "on-error": "var(--color-on-error)",
-                        "on-surface": "var(--color-on-surface)",
-                        "tertiary-fixed-dim": "var(--color-tertiary-fixed-dim)",
-                        "surface-container": "var(--color-surface-container)",
-                        "secondary-fixed": "var(--color-secondary-fixed)",
-                        "error-container": "var(--color-error-container)",
-                        "primary-fixed-dim": "var(--color-primary-fixed-dim)",
-                        "inverse-surface": "var(--color-inverse-surface)",
-                        "surface-container-high": "var(--color-surface-container-high)",
-                        "on-error-container": "var(--color-on-error-container)",
-                        "inverse-on-surface": "var(--color-inverse-on-surface)",
-                        "primary-fixed": "var(--color-primary-fixed)",
-                        "on-tertiary": "var(--color-on-tertiary)",
-                        "surface-variant": "var(--color-surface-variant)",
-                        "on-secondary-fixed": "var(--color-on-secondary-fixed)",
-                        "on-primary-fixed-variant": "var(--color-on-primary-fixed-variant)",
-                        "on-primary": "var(--color-on-primary)",
-                        "secondary-container": "var(--color-secondary-container)",
-                        "on-tertiary-container": "var(--color-on-tertiary-container)",
-                        "on-secondary-fixed-variant": "var(--color-on-secondary-fixed-variant)",
-                        "inverse-primary": "var(--color-inverse-primary)",
-                        "on-secondary-container": "var(--color-on-secondary-container)",
-                        "secondary": "var(--color-secondary)",
-                        "surface-container-lowest": "var(--color-surface-container-lowest)",
-                        "primary-container": "var(--color-primary-container)",
-                        "error": "var(--color-error)",
-                        "on-tertiary-fixed-variant": "var(--color-on-tertiary-fixed-variant)",
-                        "tertiary": "var(--color-tertiary)",
-                        "surface-container-highest": "var(--color-surface-container-highest)",
-                        "on-surface-variant": "var(--color-on-surface-variant)",
-                        "primary": "var(--color-primary)",
-                        "outline-variant": "var(--color-outline-variant)",
-                        "on-background": "var(--color-on-background)",
-                        "surface-tint": "var(--color-surface-tint)"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.25rem",
-                        "lg": "0.5rem",
-                        "xl": "0.75rem",
-                        "full": "9999px"
-                    },
-                    "fontFamily": {
-                        "headline": ["Geist", "sans-serif"],
-                        "display": ["Geist", "sans-serif"],
-                        "body": ["Geist", "sans-serif"],
-                        "label": ["Geist", "sans-serif"]
-                    }
-                }
-            }
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Geist, system-ui, sans-serif;
+            color: var(--color-on-background);
+            background:
+                radial-gradient(circle at top left, rgba(37, 99, 235, .18), transparent 34rem),
+                radial-gradient(circle at bottom right, rgba(16, 185, 129, .14), transparent 30rem),
+                var(--color-background);
+            display: grid;
+            place-items: center;
+            padding: 24px;
         }
-    </script>
+        .theme-switch { position: fixed; top: 18px; right: 18px; display:flex; align-items:center; gap:8px; color:var(--color-on-surface-variant); }
+        .toggle { width: 48px; height: 26px; border-radius: 999px; border:1px solid var(--color-outline-variant); background:var(--color-surface-container-high); position:relative; cursor:pointer; }
+        .toggle span { position:absolute; width:18px; height:18px; border-radius:50%; left:4px; top:3px; background:var(--color-primary); transition:.2s ease; }
+        .dark .toggle span { transform: translateX(22px); }
+        .login-shell { width:min(1050px, 100%); display:grid; grid-template-columns: 1fr 420px; gap:24px; align-items:stretch; }
+        .hero, .panel { background: color-mix(in srgb, var(--color-surface-container) 94%, transparent); border:1px solid var(--color-outline-variant); border-radius:28px; box-shadow:0 24px 80px rgba(0,0,0,.18); }
+        .hero { padding:34px; display:flex; flex-direction:column; justify-content:space-between; min-height:560px; overflow:hidden; position:relative; }
+        .hero::after { content:""; position:absolute; inset:auto -90px -120px auto; width:310px; height:310px; background:var(--color-primary); opacity:.12; border-radius:50%; }
+        .brand { display:flex; gap:14px; align-items:center; }
+        .brand-icon { width:52px; height:52px; border-radius:18px; background:var(--color-primary-container); color:var(--color-on-primary-container); display:grid; place-items:center; }
+        h1 { margin:0; font-size:clamp(30px, 4vw, 54px); line-height:1.02; letter-spacing:-.04em; color:var(--color-on-surface); }
+        p { margin:0; color:var(--color-on-surface-variant); line-height:1.55; }
+        .hero-text { max-width:650px; display:grid; gap:18px; position:relative; z-index:1; }
+        .chips { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+        .chip { border:1px solid var(--color-outline-variant); border-radius:999px; padding:9px 12px; color:var(--color-on-surface); background:var(--color-surface-container-high); font-size:13px; display:flex; gap:7px; align-items:center; }
+        .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; position:relative; z-index:1; }
+        .metric { background:var(--color-surface-container-high); border:1px solid var(--color-outline-variant); border-radius:18px; padding:16px; }
+        .metric strong { display:block; font-size:22px; color:var(--color-on-surface); }
+        .metric span { color:var(--color-on-surface-variant); font-size:12px; }
+        .panel { padding:26px; }
+        .panel-head { display:grid; gap:8px; margin-bottom:20px; }
+        .mode-tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; background:var(--color-surface-container-high); border:1px solid var(--color-outline-variant); padding:5px; border-radius:16px; margin-bottom:18px; }
+        .mode-tabs button { border:0; border-radius:12px; padding:11px; background:transparent; color:var(--color-on-surface-variant); font-weight:700; cursor:pointer; }
+        .mode-tabs button.active { background:var(--color-primary); color:var(--color-on-primary); }
+        .form { display:grid; gap:14px; }
+        .field { display:grid; gap:7px; }
+        label { font-size:13px; font-weight:700; color:var(--color-on-surface); }
+        .control { position:relative; }
+        .control .material-symbols-outlined { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--color-on-surface-variant); font-size:20px; }
+        input, select {
+            width:100%; border:1px solid var(--color-outline); border-radius:14px; background:var(--color-surface-container-lowest); color:var(--color-on-surface);
+            padding:13px 14px 13px 44px; font:inherit; outline:none; transition:.18s ease;
+        }
+        input:focus, select:focus { border-color:var(--color-primary); box-shadow:0 0 0 4px color-mix(in srgb, var(--color-primary) 20%, transparent); }
+        select option { background:var(--color-surface); color:var(--color-on-surface); }
+        .hint { font-size:12px; color:var(--color-on-surface-variant); background:var(--color-surface-container-high); border:1px solid var(--color-outline-variant); border-radius:14px; padding:11px; }
+        .error { color:var(--color-on-error-container); background:var(--color-error-container); border:1px solid var(--color-error); border-radius:14px; padding:12px; font-size:13px; }
+        .submit { border:0; border-radius:14px; background:var(--color-primary); color:var(--color-on-primary); padding:14px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+        .submit:hover { filter:brightness(.96); }
+        .demo-users { display:grid; gap:8px; margin-top:16px; }
+        .demo-user { display:flex; justify-content:space-between; gap:10px; border:1px solid var(--color-outline-variant); border-radius:14px; padding:10px 12px; color:var(--color-on-surface-variant); font-size:12px; background:var(--color-surface-container-high); }
+        .demo-user b { color:var(--color-on-surface); }
+        .hidden { display:none; }
+        footer { margin-top:18px; text-align:center; font-size:12px; color:var(--color-on-surface-variant); }
+        @media (max-width: 860px) { .login-shell { grid-template-columns:1fr; } .hero { min-height:auto; } .metrics { grid-template-columns:1fr; } }
+    </style>
 </head>
-<body class="bg-background min-h-screen flex flex-col justify-center items-center p-4 md:p-8 text-on-background">
-
-<!-- Toggle de tema -->
-<div class="absolute top-4 right-4 flex items-center gap-2">
-    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">light_mode</span>
-    <button id="themeToggle" class="w-12 h-6 rounded-full bg-surface-container-high border border-outline-variant relative transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary" onclick="toggleTheme()">
-        <span id="themeToggleDot" class="absolute left-1 top-1 w-4 h-4 rounded-full bg-primary transition-transform duration-300"></span>
-    </button>
-    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">dark_mode</span>
-</div>
-
-<main class="w-full max-w-md">
-    <div class="bg-surface-container border border-outline-variant rounded-2xl shadow-sm p-8 flex flex-col gap-6">
-        <div class="flex flex-col items-center text-center gap-3">
-            <div class="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-container mb-2">
-                <span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">account_balance</span>
-            </div>
-            <h1 class="font-headline text-2xl font-semibold text-on-surface tracking-tight">Sistema Bancario Distribuido</h1>
-            <p class="font-body text-sm text-on-surface-variant">Acceso institucional seguro</p>
-        </div>
-
-        {% if error %}
-        <div class="bg-error-container/20 text-on-error-container px-4 py-3 rounded-lg font-body text-sm border border-error/30">
-            {{ error }}
-        </div>
-        {% endif %}
-
-        <form class="flex flex-col gap-4" method="POST" action="{{ url_for('do_login') }}">
-            <div class="flex flex-col gap-1">
-                <label class="font-label text-sm text-on-surface" for="username">Usuario</label>
-                <div class="relative">
-                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">person</span>
-                    <input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline rounded-lg font-body text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                           id="username" name="username" placeholder="Ingresa tu usuario" required type="text"/>
-                </div>
-            </div>
-
-            <div class="flex flex-col gap-1">
-                <div class="flex justify-between items-center">
-                    <label class="font-label text-sm text-on-surface" for="password">Contraseña</label>
-                </div>
-                <div class="relative">
-                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">lock</span>
-                    <input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline rounded-lg font-body text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                           id="password" name="password" placeholder="••••••••" required type="password"/>
-                </div>
-            </div>
-
-            <div class="flex items-center justify-between mt-2">
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input class="w-4 h-4 rounded border-outline text-primary focus:ring-primary bg-surface-container-lowest" type="checkbox" name="remember" value="1"/>
-                    <span class="font-body text-sm text-on-surface-variant">Recordarme</span>
-                </label>
-                <a class="font-label text-sm text-primary hover:text-primary/80 transition-colors" href="#">Recuperar acceso</a>
-            </div>
-
-            <button class="mt-4 w-full py-3 bg-primary hover:bg-primary/90 text-on-primary font-label text-sm rounded-lg transition-colors flex justify-center items-center gap-2" type="submit">
-                Ingresar
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-            </button>
-        </form>
+<body>
+    <div class="theme-switch">
+        <span class="material-symbols-outlined">light_mode</span>
+        <button class="toggle" onclick="toggleTheme()" aria-label="Cambiar tema"><span></span></button>
+        <span class="material-symbols-outlined">dark_mode</span>
     </div>
 
-    <div class="mt-6 text-center font-body text-sm text-on-surface-variant">
-        <p>© {{ current_year | default('2024') }} Sistemas de nodos institucionales. Todos los derechos reservados.</p>
-    </div>
-</main>
+    <main class="login-shell">
+        <section class="hero">
+            <div class="brand">
+                <div class="brand-icon"><span class="material-symbols-outlined">account_balance</span></div>
+                <div>
+                    <strong>Global Finance</strong>
+                    <p>Sistema bancario distribuido</p>
+                </div>
+            </div>
+            <div class="hero-text">
+                <h1>Acceso desde cualquier banco como si fuera local.</h1>
+                <p>Proyecto Final Sistemas Distribuidos</p>
+            </div>
+            <div class="metrics">
+                <div class="metric"><strong>3</strong><span>bancos conectados</span></div>
+                <div class="metric"><strong>6</strong><span>clientes de prueba</span></div>
+                <div class="metric"><strong>18</strong><span>cuentas distribuidas</span></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 style="margin:0;color:var(--color-on-surface);font-size:24px;">Iniciar sesión</h2>
+                <p id="modeDescription">Elige si entrarás como administrador o como cliente.</p>
+            </div>
+
+            {% if error %}
+            <div class="error">{{ error }}</div>
+            {% endif %}
+
+            <div class="mode-tabs">
+                <button id="adminTab" type="button" onclick="setMode('admin')">Institucional</button>
+                <button id="clientTab" type="button" onclick="setMode('client')">Cliente</button>
+            </div>
+
+            <form class="form" method="POST" action="{{ url_for('do_login') }}">
+                <input type="hidden" id="loginType" name="login_type" value="admin">
+
+                <div class="field" id="adminUserField">
+                    <label for="adminUsername">Usuario institucional</label>
+                    <div class="control">
+                        <span class="material-symbols-outlined">admin_panel_settings</span>
+                        <input id="adminUsername" name="username" type="text" value="admin" autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="field hidden" id="clientUserField">
+                    <label for="clientUsername">Cliente</label>
+                    <div class="control">
+                        <span class="material-symbols-outlined">person</span>
+                        <select id="clientUsername" data-name="username">
+                            {% for owner, client in client_users.items() %}
+                            <option value="{{ owner }}">{{ client.name }} · {{ owner }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="password">Contraseña</label>
+                    <div class="control">
+                        <span class="material-symbols-outlined">lock</span>
+                        <input id="password" name="password" type="password" value="admin" autocomplete="current-password">
+                    </div>
+                </div>
+
+                <div class="hint" id="demoHint">Demo institucional: <b>admin / admin</b></div>
+
+                <button class="submit" type="submit">
+                    Entrar al sistema
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </button>
+            </form>
+
+            <div class="demo-users" id="clientExamples" style="display:none;">
+                <div class="hint">Clientes de prueba: todos usan contraseña <b>123456</b>.</div>
+                {% for owner, client in client_users.items() %}
+                <div class="demo-user"><b>{{ client.name }}</b><span>{{ owner }}</span></div>
+                {% endfor %}
+            </div>
+
+            <footer>© {{ current_year | default('2026') }} Proyecto de Sistemas Distribuidos</footer>
+        </section>
+    </main>
 
 <script>
     (function() {
         const savedTheme = localStorage.getItem('theme');
-        const html = document.documentElement;
-        if (savedTheme === 'light') {
-            html.classList.remove('dark');
-        } else {
-            html.classList.add('dark');
-        }
-        updateToggleDot();
+        if (savedTheme === 'light') document.documentElement.classList.remove('dark');
+        else document.documentElement.classList.add('dark');
+        setMode('{{ selected_mode | default("admin") }}');
     })();
 
     function toggleTheme() {
         const html = document.documentElement;
-        if (html.classList.contains('dark')) {
-            html.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-        } else {
-            html.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        }
-        updateToggleDot();
+        html.classList.toggle('dark');
+        localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
     }
 
-    function updateToggleDot() {
-        const dot = document.getElementById('themeToggleDot');
-        if (!dot) return;
-        if (document.documentElement.classList.contains('dark')) {
-            dot.style.transform = 'translateX(24px)';
+    function setMode(mode) {
+        const isClient = mode === 'client';
+        document.getElementById('loginType').value = mode;
+        document.getElementById('adminTab').classList.toggle('active', !isClient);
+        document.getElementById('clientTab').classList.toggle('active', isClient);
+        document.getElementById('adminUserField').classList.toggle('hidden', isClient);
+        document.getElementById('clientUserField').classList.toggle('hidden', !isClient);
+        document.getElementById('clientExamples').style.display = isClient ? 'grid' : 'none';
+        document.getElementById('modeDescription').textContent = isClient
+            ? 'El cliente solo verá y operará sus propias cuentas.'
+            : 'El administrador ve todos los bancos, clientes y nodos.';
+        const adminInput = document.getElementById('adminUsername');
+        const clientSelect = document.getElementById('clientUsername');
+        const password = document.getElementById('password');
+        if (isClient) {
+            adminInput.removeAttribute('name');
+            clientSelect.setAttribute('name', 'username');
+            password.value = '123456';
+            document.getElementById('demoHint').innerHTML = 'Demo cliente: selecciona un cliente y usa <b>123456</b>.';
         } else {
-            dot.style.transform = 'translateX(0)';
+            clientSelect.removeAttribute('name');
+            adminInput.setAttribute('name', 'username');
+            password.value = 'admin';
+            document.getElementById('demoHint').innerHTML = 'Demo institucional: <b>admin / admin</b>';
         }
     }
-
-    document.addEventListener('DOMContentLoaded', updateToggleDot);
 </script>
 </body>
 </html>

@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+{% block title %}Clientes · Sistema Bancario Distribuido{% endblock %}
+
+{% block extra_head %}
+<style>
+    .client-shell {
+        display: grid;
+        gap: 1.25rem;
+    }
+
+    .client-hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--color-outline-variant);
+        background:
+            radial-gradient(circle at top right, color-mix(in srgb, var(--color-primary) 20%, transparent), transparent 34%),
+            linear-gradient(135deg, var(--color-surface-container), var(--color-surface));
+        border-radius: 1.25rem;
+        padding: 1.5rem;
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+    }
+
+    .dark .client-hero {
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+    }
+
+    .metric-card,
+    .client-card,
+    .operation-card,
+    .requirements-card {
+        border: 1px solid var(--color-outline-variant);
+        background: var(--color-surface-container-low);
+        border-radius: 1rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .dark .metric-card,
+    .dark .client-card,
+    .dark .operation-card,
+    .dark .requirements-card {
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+    }
+
+    .metric-card {
+        padding: 1rem;
+    }
+
+    .client-card {
+        padding: 1rem;
+        transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    .client-card:hover {
+        transform: translateY(-2px);
+        border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-outline-variant));
+        background: var(--color-surface-container);
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        border-radius: 999px;
+        padding: .35rem .65rem;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .02em;
+        border: 1px solid var(--color-outline-variant);
+        background: var(--color-surface-container-high);
+        color: var(--color-on-surface);
+    }
+
+    .status-pill.ok {
+        color: #047857;
+        background: color-mix(in srgb, #10b981 16%, var(--color-surface));
+        border-color: color-mix(in srgb, #10b981 35%, var(--color-outline-variant));
+    }
+
+    .dark .status-pill.ok {
+        color: #6ee7b7;
+    }
+
+    .status-pill.warn {
+        color: #b45309;
+        background: color-mix(in srgb, #f59e0b 16%, var(--color-surface));
+        border-color: color-mix(in srgb, #f59e0b 38%, var(--color-outline-variant));
+    }
+
+    .dark .status-pill.warn {
+        color: #fbbf24;
+    }
+
+    .bank-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        border-radius: .75rem;
+        padding: .32rem .55rem;
+        background: var(--color-surface-container-high);
+        color: var(--color-on-surface-variant);
+        border: 1px solid var(--color-outline-variant);
+        font-size: .78rem;
+    }
+
+    .account-row {
+        display: grid;
+        grid-template-columns: minmax(120px, .75fr) minmax(120px, 1fr) minmax(105px, auto);
+        gap: .75rem;
+        align-items: center;
+        padding: .75rem;
+        border: 1px solid var(--color-outline-variant);
+        background: var(--color-surface);
+        border-radius: .85rem;
+    }
+
+    @media (max-width: 720px) {
+        .account-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .gf-input,
+    .gf-select {
+        width: 100%;
+        border: 1px solid var(--color-outline-variant);
+        background: var(--color-surface);
+        color: var(--color-on-surface);
+        border-radius: .85rem;
+        padding: .85rem .95rem;
+        outline: none;
+        transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+
+    .gf-input:focus,
+    .gf-select:focus {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 22%, transparent);
+    }
+
+    .gf-select option {
+        background: var(--color-surface);
+        color: var(--color-on-surface);
+    }
+
+    .primary-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        border-radius: .85rem;
+        background: var(--color-primary);
+        color: var(--color-on-primary);
+        padding: .85rem 1rem;
+        font-weight: 800;
+        transition: transform .18s ease, opacity .18s ease;
+    }
+
+    .primary-btn:hover {
+        transform: translateY(-1px);
+        opacity: .95;
+    }
+
+    .secondary-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        border-radius: .85rem;
+        border: 1px solid var(--color-outline-variant);
+        background: var(--color-surface-container-high);
+        color: var(--color-on-surface);
+        padding: .65rem .85rem;
+        font-weight: 700;
+    }
+
+    .client-filter-active {
+        background: var(--color-primary) !important;
+        color: var(--color-on-primary) !important;
+        border-color: var(--color-primary) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="client-shell">
+    <div class="client-hero">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+            <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 text-sm font-bold mb-4">
+                    <span class="material-symbols-outlined text-base">verified_user</span>
+                    Vista operacional de clientes
+                </div>
+                <h1 class="font-headline text-3xl md:text-4xl font-black text-on-surface">Clientes del sistema bancario</h1>
+                <p class="text-on-surface-variant mt-3 max-w-3xl">
+                    Aquí se agrupan las cuentas reales almacenadas en archivos JSON por cliente. Esta vista ayuda a demostrar que los usuarios pueden tener cuentas en uno, dos o tres bancos y operar sobre ellas desde el sistema.
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                {% if is_admin %}
+                <span class="status-pill {{ 'ok' if stats.requirements_ok else 'warn' }}">
+                    <span class="material-symbols-outlined text-base">{{ 'check_circle' if stats.requirements_ok else 'info' }}</span>
+                    {{ 'Requisitos de clientes cubiertos' if stats.requirements_ok else 'Requisitos en revisión' }}
+                </span>
+                {% else %}
+                <span class="status-pill ok">
+                    <span class="material-symbols-outlined text-base">lock_person</span>
+                    Vista filtrada del cliente
+                </span>
+                {% endif %}
+                <a href="{{ url_for('transfers') }}" class="secondary-btn">
+                    <span class="material-symbols-outlined text-base">swap_horiz</span>
+                    Ir a transferencias
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+        <div class="metric-card">
+            <p class="text-sm text-on-surface-variant">Clientes</p>
+            <p class="text-3xl font-black text-on-surface mt-1">{{ stats.total_clients }}</p>
+            <p class="text-xs text-on-surface-variant mt-1">registrados en los nodos</p>
+        </div>
+        <div class="metric-card">
+            <p class="text-sm text-on-surface-variant">Cuentas</p>
+            <p class="text-3xl font-black text-on-surface mt-1">{{ stats.total_accounts }}</p>
+            <p class="text-xs text-on-surface-variant mt-1">mínimo 3 por cliente</p>
+        </div>
+        <div class="metric-card">
+            <p class="text-sm text-on-surface-variant">Clientes locales</p>
+            <p class="text-3xl font-black text-on-surface mt-1">{{ stats.exclusive_clients }}</p>
+            <p class="text-xs text-on-surface-variant mt-1">solo un banco</p>
+        </div>
+        <div class="metric-card">
+            <p class="text-sm text-on-surface-variant">Multibanco</p>
+            <p class="text-3xl font-black text-on-surface mt-1">{{ stats.multibank_clients }}</p>
+            <p class="text-xs text-on-surface-variant mt-1">dos o más bancos</p>
+        </div>
+        <div class="metric-card">
+            <p class="text-sm text-on-surface-variant">Globales</p>
+            <p class="text-3xl font-black text-on-surface mt-1">{{ stats.global_clients }}</p>
+            <p class="text-xs text-on-surface-variant mt-1">presentes en 3 bancos</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5">
+        <div class="space-y-4">
+            <div class="requirements-card p-4">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                        <h2 class="font-headline text-xl font-bold text-on-surface">{{ 'Validación contra la consigna' if is_admin else 'Mis cuentas asociadas' }}</h2>
+                        <p class="text-sm text-on-surface-variant mt-1">{{ 'Resumen rápido para defenderlo en la demo.' if is_admin else 'Solo se muestran las cuentas que pertenecen al cliente autenticado.' }}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button class="secondary-btn client-filter client-filter-active" data-filter="all">Todos</button>
+                        <button class="secondary-btn client-filter" data-filter="local">Locales</button>
+                        <button class="secondary-btn client-filter" data-filter="multi">Multibanco</button>
+                        <button class="secondary-btn client-filter" data-filter="global">Globales</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="clientsList" class="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+                {% for client in clients %}
+                <article class="client-card" data-segment="{{ 'global' if client.bank_count >= 3 else ('multi' if client.bank_count == 2 else 'local') }}" data-owner="{{ client.owner }}">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h3 class="font-headline text-xl font-black text-on-surface">{{ client.name }}</h3>
+                            <p class="text-sm text-on-surface-variant mt-1">ID cliente: <span class="font-mono">{{ client.owner }}</span></p>
+                        </div>
+                        <span class="status-pill {{ 'ok' if client.meets_min_accounts else 'warn' }}">
+                            {{ client.segment }}
+                        </span>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 mt-4">
+                        {% for bank in client.banks %}
+                        <span class="bank-chip">
+                            <span class="material-symbols-outlined text-base text-primary">account_balance</span>
+                            {{ bank }}
+                        </span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mt-4">
+                        <div class="rounded-xl bg-surface p-3 border border-outline-variant">
+                            <p class="text-xs text-on-surface-variant">Cuentas</p>
+                            <p class="text-2xl font-black text-on-surface">{{ client.accounts_count }}</p>
+                        </div>
+                        <div class="rounded-xl bg-surface p-3 border border-outline-variant">
+                            <p class="text-xs text-on-surface-variant">Estimado USD</p>
+                            <p class="text-2xl font-black text-on-surface">{{ "{:,.2f}".format(client.estimated_usd) }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 space-y-2">
+                        {% for acc in client.accounts %}
+                        <div class="account-row" data-account-card="{{ acc.number }}">
+                            <div>
+                                <p class="font-mono font-black text-on-surface">{{ acc.number }}</p>
+                                <p class="text-xs text-on-surface-variant">{{ acc.type }} · {{ acc.bank }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-on-surface-variant">Titular</p>
+                                <p class="font-bold text-on-surface">{{ client.name }}</p>
+                            </div>
+                            <div class="text-left md:text-right">
+                                <p class="text-xs text-on-surface-variant">Saldo</p>
+                                <p class="font-black text-primary" data-balance-text="{{ acc.number }}">{{ acc.balance }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+
+        <aside class="operation-card p-5 h-fit sticky top-24">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <span class="material-symbols-outlined">payments</span>
+                </div>
+                <div>
+                    <h2 class="font-headline text-xl font-black text-on-surface">Operaciones rápidas</h2>
+                    <p class="text-sm text-on-surface-variant">Depósito o retiro sobre cualquier cuenta.</p>
+                </div>
+            </div>
+
+            <form id="accountOperationForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-on-surface mb-2" for="operationType">Tipo de operación</label>
+                    <select id="operationType" class="gf-select">
+                        <option value="deposit">Depositar</option>
+                        <option value="withdraw">Retirar</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-on-surface mb-2" for="accountId">Cuenta</label>
+                    <select id="accountId" class="gf-select">
+                        {% for client in clients %}
+                        <optgroup label="{{ client.name }}">
+                            {% for acc in client.accounts %}
+                            <option value="{{ acc.number }}" data-balance="{{ acc.numeric_balance }}" data-currency="{{ acc.currency }}" data-owner="{{ client.name }}">
+                                {{ acc.number }} · {{ client.name }} · {{ acc.bank }} · {{ acc.balance }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-on-surface mb-2" for="amount">Monto</label>
+                    <input id="amount" class="gf-input" type="number" min="0.01" step="0.01" placeholder="Ejemplo: 150.00" />
+                    <p id="operationHint" class="text-xs text-on-surface-variant mt-2">El monto usa la moneda de la cuenta seleccionada.</p>
+                </div>
+
+                <div class="rounded-xl bg-surface border border-outline-variant p-4">
+                    <p class="text-xs uppercase tracking-wider text-on-surface-variant font-bold">Resumen</p>
+                    <div class="mt-3 space-y-2 text-sm">
+                        <div class="flex justify-between gap-4"><span class="text-on-surface-variant">Titular</span><strong id="summaryOwner" class="text-on-surface text-right">—</strong></div>
+                        <div class="flex justify-between gap-4"><span class="text-on-surface-variant">Cuenta</span><strong id="summaryAccount" class="text-on-surface text-right">—</strong></div>
+                        <div class="flex justify-between gap-4"><span class="text-on-surface-variant">Saldo actual</span><strong id="summaryBalance" class="text-primary text-right">—</strong></div>
+                    </div>
+                </div>
+
+                <button type="submit" id="operationSubmit" class="primary-btn w-full">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    Ejecutar operación
+                </button>
+            </form>
+
+            <div class="mt-5 rounded-xl bg-primary/10 border border-primary/20 p-4">
+                <p class="text-sm text-on-surface-variant">
+                    Esta parte cubre la operación faltante de la consigna: el usuario puede consultar, retirar y depositar en cuentas ubicadas en bancos distintos.
+                </p>
+            </div>
+        </aside>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const money = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function selectedAccountOption() {
+        const select = document.getElementById('accountId');
+        return select ? select.options[select.selectedIndex] : null;
+    }
+
+    function refreshOperationSummary() {
+        const option = selectedAccountOption();
+        const summaryOwner = document.getElementById('summaryOwner');
+        const summaryAccount = document.getElementById('summaryAccount');
+        const summaryBalance = document.getElementById('summaryBalance');
+        const hint = document.getElementById('operationHint');
+        if (!option) return;
+        const balance = Number(option.dataset.balance || 0);
+        const currency = option.dataset.currency || '';
+        summaryOwner.textContent = option.dataset.owner || '—';
+        summaryAccount.textContent = option.value || '—';
+        summaryBalance.textContent = `${currency} ${money.format(balance)}`;
+        hint.textContent = `El monto se aplicará en ${currency}. Saldo disponible: ${currency} ${money.format(balance)}.`;
+    }
+
+    document.getElementById('accountId')?.addEventListener('change', refreshOperationSummary);
+    document.addEventListener('DOMContentLoaded', refreshOperationSummary);
+
+    document.querySelectorAll('.client-filter').forEach(button => {
+        button.addEventListener('click', () => {
+            document.querySelectorAll('.client-filter').forEach(btn => btn.classList.remove('client-filter-active'));
+            button.classList.add('client-filter-active');
+            const filter = button.dataset.filter;
+            document.querySelectorAll('.client-card').forEach(card => {
+                const segment = card.dataset.segment;
+                const visible = filter === 'all' || segment === filter || (filter === 'multi' && (segment === 'multi' || segment === 'global'));
+                card.style.display = visible ? '' : 'none';
+            });
+        });
+    });
+
+    document.getElementById('accountOperationForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submit = document.getElementById('operationSubmit');
+        const operation = document.getElementById('operationType').value;
+        const accountId = document.getElementById('accountId').value;
+        const amountInput = document.getElementById('amount');
+        const amount = Number(amountInput.value);
+        const option = selectedAccountOption();
+        const currentBalance = Number(option?.dataset.balance || 0);
+
+        if (!accountId) {
+            showToast('Selecciona una cuenta.', 3000, 'warning');
+            return;
+        }
+        if (!amount || amount <= 0) {
+            showToast('Ingresa un monto mayor que cero.', 3000, 'warning');
+            return;
+        }
+        if (operation === 'withdraw' && amount > currentBalance) {
+            showToast('El retiro no puede superar el saldo disponible.', 3500, 'warning');
+            return;
+        }
+
+        submit.disabled = true;
+        submit.style.opacity = '.65';
+        submit.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Procesando...';
+
+        try {
+            const response = await fetch('/api/account-operation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation, account_id: accountId, amount })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'No se pudo completar la operación');
+            }
+
+            if (option) {
+                option.dataset.balance = data.new_balance;
+                const owner = option.dataset.owner || '';
+                const bankText = option.textContent.split('·').slice(2, -1).join('·').trim();
+                option.textContent = `${data.account_id} · ${owner} · ${bankText} · ${data.new_balance_text}`;
+            }
+            document.querySelectorAll(`[data-balance-text="${data.account_id}"]`).forEach(el => {
+                el.textContent = data.new_balance_text;
+            });
+            refreshOperationSummary();
+            amountInput.value = '';
+            showToast(data.message || 'Operación realizada correctamente.', 3500, 'success');
+        } catch (error) {
+            showToast(error.message, 4500, 'error');
+        } finally {
+            submit.disabled = false;
+            submit.style.opacity = '1';
+            submit.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Ejecutar operación';
+        }
+    });
+</script>
+{% endblock %}

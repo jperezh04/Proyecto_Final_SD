@@ -1,9 +1,9 @@
 {
   "account_id": "CH002",
-  "owner": "cliente_chile",
-  "balance": 8000.0,
+  "owner": "bruno_chile_solo",
+  "balance": 6500.0,
   "currency": "USD",
   "type": "corriente",
-  "created_at": "2026-06-01T06:48:49.182750",
-  "updated_at": "2026-06-01T06:48:49.182750"
+  "created_at": "2026-07-01T09:00:00+00:00",
+  "updated_at": "2026-07-01T09:00:00+00:00"
 }

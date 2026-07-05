@@ -27,6 +27,60 @@ local_event_log = []
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
 
+# Tipo de cambio interno del sistema.
+# Base: 1 USD = X moneda local. Fijo para que el entorno sea reproducible.
+EXCHANGE_RATES = {
+    "USD": 1.0,
+    "PEN": 3.75,
+    "CLP": 950.0,
+    "COP": 4000.0,
+}
+
+# Usuarios de prueba para acceso de clientes.
+# En una versión con BD, esto pasaría a una tabla de usuarios con hash de contraseña.
+CLIENT_CREDENTIALS = {
+    "ana_peru_solo": {"password": "123456", "name": "Ana Torres"},
+    "bruno_chile_solo": {"password": "123456", "name": "Bruno Fernández"},
+    "camila_colombia_solo": {"password": "123456", "name": "Camila Rojas"},
+    "diego_peru_chile": {"password": "123456", "name": "Diego Salazar"},
+    "valeria_global": {"password": "123456", "name": "Valeria Global"},
+    "esteban_colombia_solo": {"password": "123456", "name": "Esteban Mora"},
+}
+
+def _convert_amount(amount, source_currency, dest_currency):
+    source_currency = (source_currency or "").upper()
+    dest_currency = (dest_currency or "").upper()
+    if source_currency == dest_currency:
+        return round(float(amount), 2), 1.0
+    if source_currency not in EXCHANGE_RATES or dest_currency not in EXCHANGE_RATES:
+        raise ValueError(f"Moneda no soportada: {source_currency} -> {dest_currency}")
+    usd_amount = float(amount) / EXCHANGE_RATES[source_currency]
+    converted = usd_amount * EXCHANGE_RATES[dest_currency]
+    exchange_rate = EXCHANGE_RATES[dest_currency] / EXCHANGE_RATES[source_currency]
+    return round(converted, 2), round(exchange_rate, 6)
+
+def _get_account_snapshot(bank, account_id):
+    stub = get_stub(bank)
+    resp = stub.GetBalance(bank_pb2.BalanceRequest(account_id=account_id), timeout=2)
+    return {
+        "account_id": resp.account_id,
+        "balance": float(resp.balance),
+        "currency": resp.currency,
+    }
+
+def _conversion_details(amount, source_bank, source_account, dest_bank, dest_account):
+    source = _get_account_snapshot(source_bank, source_account)
+    dest = _get_account_snapshot(dest_bank, dest_account)
+    dest_amount, exchange_rate = _convert_amount(amount, source["currency"], dest["currency"])
+    return {
+        "source_amount": round(float(amount), 2),
+        "source_currency": source["currency"],
+        "destination_amount": dest_amount,
+        "destination_currency": dest["currency"],
+        "exchange_rate": exchange_rate,
+        "conversion_applied": source["currency"] != dest["currency"],
+    }
+
 
 def _log_local_event(etype, title, description):
     local_event_log.append({
@@ -38,11 +92,75 @@ def _log_local_event(etype, title, description):
     if len(local_event_log) > 100:
         local_event_log.pop(0)
 
+def _is_client_session():
+    return session.get('user_type') == 'client' and bool(session.get('client_owner'))
+
+def _session_owner_filter():
+    """Devuelve el owner que debe usarse para filtrar cuentas. Admin ve todo."""
+    return session.get('client_owner', '') if _is_client_session() else ''
+
+def _get_visible_accounts():
+    return get_all_accounts_for_user(_session_owner_filter())
+
+def _account_belongs_to_session(account_id):
+    if not _is_client_session():
+        return True
+    owner = session.get('client_owner')
+    account_id = (account_id or '').strip().upper()
+    return any(acc.get('number') == account_id and acc.get('owner') == owner for acc in _get_visible_accounts())
+
+def _filter_transactions_for_session(transactions):
+    if not _is_client_session():
+        return transactions
+    visible_account_ids = {acc.get('number') for acc in _get_visible_accounts()}
+    return [
+        tx for tx in transactions
+        if tx.get('source_account') in visible_account_ids or tx.get('dest_account') in visible_account_ids
+    ]
+
+def _redirect_clients_to_transfers():
+    if _is_client_session():
+        return redirect(url_for('transfers'))
+    return None
+
+
+def _client_forbidden_json():
+    if _is_client_session():
+        return jsonify({'success': False, 'message': 'Esta sección es solo para el panel institucional'}), 403
+    return None
+
+
+def _decorate_account_for_transfer(acc):
+    owner = acc.get('owner', '—')
+    return {
+        'number': acc['number'],
+        'owner': owner,
+        'owner_label': _client_display_name(owner),
+        'type': acc.get('type', 'Cuenta'),
+        'bank': acc['bank'],
+        'bank_id': acc['bank_id'],
+        'currency': acc['currency'],
+        'numeric_balance': acc.get('numeric_balance', 0),
+        'balance': acc['balance']
+    }
+
 def get_user():
+    if _is_client_session():
+        owner = session.get('client_owner')
+        name = session.get('client_name') or CLIENT_CREDENTIALS.get(owner, {}).get('name', owner)
+        return {
+            'name': name,
+            'bank_name': 'Banca digital',
+            'role': f'Cliente · {owner}',
+            'user_type': 'client',
+            'client_owner': owner,
+            'avatar_url': f'https://ui-avatars.com/api/?name={name.replace(" ", "+")}&background=10b981&color=fff'
+        }
     return {
         'name': session.get('user', 'Admin'),
         'bank_name': 'Global Finance',
-        'role': 'Nodo institucional #12',
+        'role': 'Panel institucional',
+        'user_type': 'admin',
         'avatar_url': 'https://ui-avatars.com/api/?name=Admin&background=316bf3&color=fff'
     }
 
@@ -75,10 +193,109 @@ def get_balance_distribution(accounts):
 def _format_money(currency, amount):
     return f"{currency} {amount:,.2f}"
 
+
+def _client_display_name(owner):
+    """Convierte el owner técnico del JSON en un nombre legible para la vista."""
+    owner = owner or "cliente_sin_nombre"
+    custom_names = {
+        "ana_peru_solo": "Ana Torres",
+        "bruno_chile_solo": "Bruno Fernández",
+        "camila_colombia_solo": "Camila Rojas",
+        "diego_peru_chile": "Diego Salazar",
+        "valeria_global": "Valeria Global",
+        "esteban_colombia_solo": "Esteban Mora",
+    }
+    if owner in custom_names:
+        return custom_names[owner]
+    return owner.replace("_", " ").title()
+
+
+def _client_segment(bank_count):
+    if bank_count >= 3:
+        return "Cliente global"
+    if bank_count == 2:
+        return "Cliente binacional"
+    return "Cliente local"
+
+
+def _currency_totals(accounts):
+    totals = {}
+    for acc in accounts:
+        currency = acc.get("currency", "") or "—"
+        totals[currency] = totals.get(currency, 0) + float(acc.get("numeric_balance", 0))
+    return [
+        {"currency": currency, "amount": amount, "formatted": _format_money(currency, amount)}
+        for currency, amount in sorted(totals.items())
+    ]
+
+
+def _estimated_usd(accounts):
+    total = 0.0
+    for acc in accounts:
+        currency = (acc.get("currency") or "USD").upper()
+        rate = EXCHANGE_RATES.get(currency)
+        if rate:
+            total += float(acc.get("numeric_balance", 0)) / rate
+    return round(total, 2)
+
+
+def _build_clients_summary(accounts):
+    """Agrupa las cuentas reales por cliente para demostrar los requisitos del proyecto."""
+    grouped = {}
+    bank_owners = {bank: set() for bank in BANKS}
+
+    for acc in accounts:
+        owner = acc.get("owner") or "cliente_sin_nombre"
+        bank_id = acc.get("bank_id") or bank_from_account(acc.get("number")) or "desconocido"
+        bank_owners.setdefault(bank_id, set()).add(owner)
+        grouped.setdefault(owner, []).append(acc)
+
+    clients = []
+    exclusive_by_bank = {bank: False for bank in BANKS}
+
+    for owner, client_accounts in sorted(grouped.items()):
+        bank_ids = sorted({acc.get("bank_id") or bank_from_account(acc.get("number")) for acc in client_accounts})
+        bank_ids = [bank for bank in bank_ids if bank]
+        bank_count = len(bank_ids)
+        if bank_count == 1 and bank_ids[0] in exclusive_by_bank:
+            exclusive_by_bank[bank_ids[0]] = True
+
+        clients.append({
+            "owner": owner,
+            "name": _client_display_name(owner),
+            "segment": _client_segment(bank_count),
+            "bank_count": bank_count,
+            "banks": [BANK_LABELS.get(bank, bank.capitalize()) for bank in bank_ids],
+            "bank_ids": bank_ids,
+            "accounts_count": len(client_accounts),
+            "accounts": sorted(client_accounts, key=lambda a: a.get("number", "")),
+            "currency_totals": _currency_totals(client_accounts),
+            "estimated_usd": _estimated_usd(client_accounts),
+            "meets_min_accounts": len(client_accounts) >= 3,
+        })
+
+    requirement_status = {
+        "bank_min_clients": all(len(owners) >= 3 for owners in bank_owners.values()),
+        "client_min_accounts": all(client["accounts_count"] >= 3 for client in clients) if clients else False,
+        "exclusive_client_each_bank": all(exclusive_by_bank.values()) if exclusive_by_bank else False,
+        "client_two_banks": any(client["bank_count"] == 2 for client in clients),
+        "client_three_banks": any(client["bank_count"] >= 3 for client in clients),
+    }
+
+    stats = {
+        "total_clients": len(clients),
+        "total_accounts": len(accounts),
+        "exclusive_clients": sum(1 for client in clients if client["bank_count"] == 1),
+        "multibank_clients": sum(1 for client in clients if client["bank_count"] >= 2),
+        "global_clients": sum(1 for client in clients if client["bank_count"] >= 3),
+        "bank_clients": {BANK_LABELS.get(bank, bank.capitalize()): len(owners) for bank, owners in bank_owners.items()},
+        "requirements_ok": all(requirement_status.values()) if requirement_status else False,
+    }
+    return clients, stats, requirement_status
+
 def _account_exists_in_bank(bank, account_id):
     try:
-        stub = get_stub(bank)
-        stub.GetBalance(bank_pb2.BalanceRequest(account_id=account_id), timeout=2)
+        _get_account_snapshot(bank, account_id)
         return True
     except Exception:
         return False
@@ -133,7 +350,12 @@ def _validate_transfer_payload(data):
 
 @app.route('/')
 def login():
-    return render_template('login.html', current_year=datetime.now().year)
+    return render_template(
+        'login.html',
+        current_year=datetime.now().year,
+        client_users=CLIENT_CREDENTIALS,
+        selected_mode=request.args.get('mode', 'admin')
+    )
 
 @app.route('/logout')
 def logout():
@@ -142,25 +364,46 @@ def logout():
 
 @app.route('/login', methods=['POST'])
 def do_login():
-    username = request.form['username']
-    password = request.form['password']
-    if username == 'admin' and password == 'admin':
-        session['user'] = username
-        return redirect(url_for('dashboard'))
-    return render_template('login.html', error='Credenciales inválidas', current_year=datetime.now().year)
+    login_type = (request.form.get('login_type') or 'admin').strip().lower()
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+
+    if login_type == 'admin':
+        if username == 'admin' and password == 'admin':
+            session.clear()
+            session['user'] = 'admin'
+            session['user_type'] = 'admin'
+            return redirect(url_for('dashboard'))
+        return render_template('login.html', error='Credenciales institucionales inválidas',
+                               current_year=datetime.now().year, client_users=CLIENT_CREDENTIALS, selected_mode='admin')
+
+    client = CLIENT_CREDENTIALS.get(username)
+    if client and password == client.get('password'):
+        session.clear()
+        session['user'] = client.get('name', username)
+        session['user_type'] = 'client'
+        session['client_owner'] = username
+        session['client_name'] = client.get('name', username)
+        return redirect(url_for('transfers'))
+
+    return render_template('login.html', error='Credenciales de cliente inválidas',
+                           current_year=datetime.now().year, client_users=CLIENT_CREDENTIALS, selected_mode='client')
 
 @app.route('/dashboard')
 def dashboard():
     if 'user' not in session:
         return redirect(url_for('login'))
-    accounts = get_all_accounts_for_user(session['user'])
+    client_redirect = _redirect_clients_to_transfers()
+    if client_redirect:
+        return client_redirect
+    accounts = _get_visible_accounts()
     total_balance = sum(float(acc.get('numeric_balance', 0)) for acc in accounts)
     healthy_banks, avg_latency = check_bank_health()
     network_health = int((healthy_banks / len(BANKS)) * 100)
     balance_heights = get_balance_distribution(accounts)
     nodes, _ = get_cluster_state()
     leader_node = next((n for n in nodes if n.get('state') == 'LEADER'), None)
-    transactions = get_all_transactions()
+    transactions = _filter_transactions_for_session(get_all_transactions())
     today = datetime.now(timezone.utc).date()
     tx_today = 0
     for tx in transactions:
@@ -193,7 +436,7 @@ def accounts():
     if 'user' not in session:
         return redirect(url_for('login'))
     try:
-        all_accounts = get_all_accounts_for_user(session['user'])
+        all_accounts = _get_visible_accounts()
     except Exception as e:
         print(f"Error obteniendo cuentas: {e}")
         all_accounts = []
@@ -203,25 +446,65 @@ def accounts():
     return render_template('accounts.html', user=user, active_page='accounts',
                            accounts=all_accounts, summary=summary)
 
+
+@app.route('/clients')
+def clients():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    client_redirect = _redirect_clients_to_transfers()
+    if client_redirect:
+        return client_redirect
+    try:
+        all_accounts = _get_visible_accounts()
+    except Exception as e:
+        print(f"Error obteniendo clientes: {e}")
+        all_accounts = []
+    clients_data, stats, requirement_status = _build_clients_summary(all_accounts)
+    banks = [{'id': bank, 'name': BANK_LABELS.get(bank, bank.capitalize())} for bank in BANKS]
+    user = get_user()
+    return render_template(
+        'clients.html',
+        user=user,
+        active_page='clients',
+        clients=clients_data,
+        stats=stats,
+        requirement_status=requirement_status,
+        banks=banks,
+        exchange_rates=EXCHANGE_RATES,
+        is_admin=(not _is_client_session()),
+    )
+
 @app.route('/transfers')
 def transfers():
     if 'user' not in session:
         return redirect(url_for('login'))
     banks = [{'id': bank, 'name': BANK_LABELS.get(bank, bank.capitalize())} for bank in BANKS]
-    user_accounts = [
-        {'number': acc['number'], 'bank': acc['bank'], 'bank_id': acc['bank_id'], 'currency': acc['currency'], 'balance': acc['balance']}
-        for acc in get_all_accounts_for_user(session['user'])
-    ]
+
+    # Origen: el cliente solo puede usar sus cuentas. Admin puede usar todas para la demo.
+    raw_source_accounts = _get_visible_accounts()
+    source_accounts = [_decorate_account_for_transfer(acc) for acc in raw_source_accounts]
+
+    # Destino: se muestran todas las cuentas existentes para permitir pagos a otros clientes.
+    # La validación del backend mantiene restringida la cuenta origen del cliente autenticado.
+    raw_destination_accounts = get_all_accounts_for_user()
+    destination_accounts = [_decorate_account_for_transfer(acc) for acc in raw_destination_accounts]
+
+    total_clients = len({acc['owner'] for acc in destination_accounts if acc.get('owner') and acc.get('owner') != '—'})
     user = get_user()
     return render_template('transfers.html', user=user, active_page='transfers',
-                           banks=banks, user_accounts=user_accounts)
+                           banks=banks,
+                           user_accounts=source_accounts,
+                           destination_accounts=destination_accounts,
+                           total_clients=total_clients,
+                           is_client=_is_client_session(),
+                           exchange_rates=EXCHANGE_RATES)
 
 @app.route('/history')
 def history():
     if 'user' not in session:
         return redirect(url_for('login'))
     transactions = []
-    for tx in get_all_transactions():
+    for tx in _filter_transactions_for_session(get_all_transactions()):
         timestamp = tx.get('timestamp', '')
         try:
             dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
@@ -250,6 +533,9 @@ def history():
 def banks():
     if 'user' not in session:
         return redirect(url_for('login'))
+    client_redirect = _redirect_clients_to_transfers()
+    if client_redirect:
+        return client_redirect
     accounts_by_bank = get_accounts_by_bank()
     nodes, _ = get_cluster_state()
     node_status_by_bank = {}
@@ -306,6 +592,9 @@ def _prom_query_all(query):
 def monitoring():
     if 'user' not in session:
         return redirect(url_for('login'))
+    client_redirect = _redirect_clients_to_transfers()
+    if client_redirect:
+        return client_redirect
 
     prom_ok = _prom_query("up") is not None
 
@@ -421,6 +710,9 @@ def monitoring():
 def coordination():
     if 'user' not in session:
         return redirect(url_for('login'))
+    client_redirect = _redirect_clients_to_transfers()
+    if client_redirect:
+        return client_redirect
     nodes, events = get_cluster_state()
     bank_name_map = {"peru": 3, "chile": 2, "colombia": 1}
     for node in nodes:
@@ -441,6 +733,11 @@ def coordination():
 
 @app.route('/error')
 def error():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    client_redirect = _redirect_clients_to_transfers()
+    if client_redirect:
+        return client_redirect
     recovery = {
         'status_message': 'RECUPERACIÓN AUTOMÁTICA EN PROCESO',
         'trigger': 'Umbral de espera alcanzado',
@@ -461,6 +758,9 @@ def error():
 @app.route('/api/transfer', methods=['POST'])
 def api_transfer():
     global transactions_today_count
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+
     data = request.get_json(silent=True) or {}
     payload, error_msg = _validate_transfer_payload(data)
     if error_msg:
@@ -474,27 +774,53 @@ def api_transfer():
     amount = payload['amount']
     description = payload['description']
 
+    if not _account_belongs_to_session(source_account):
+        return jsonify({'success': False, 'message': 'No puedes operar una cuenta origen que no pertenece al cliente autenticado'}), 403
+    # El destino puede pertenecer a otro cliente; lo que se restringe es la cuenta origen.
+
     try:
+        conversion = _conversion_details(amount, source_bank, source_account, dest_bank, dest_account)
+
         if source_bank == dest_bank:
             stub = get_stub(source_bank)
             resp = stub.TransferLocal(bank_pb2.TransferRequest(
-                source_account=source_account, dest_account=dest_account,
-                amount=amount, description=description), timeout=5)
+                source_account=source_account,
+                dest_account=dest_account,
+                amount=amount,
+                description=description
+            ), timeout=5)
             if resp.success:
                 transactions_today_count += 1
-                _log_local_event('transaction', 'Transferencia local completada', f'{source_account} -> {dest_account} ({amount})')
-                return jsonify({'success': True, 'message': resp.message, 'tx_id': resp.transaction_id})
+                _log_local_event(
+                    'transaction',
+                    'Transferencia local completada',
+                    f"{source_account} -> {dest_account} "
+                    f"({conversion['source_amount']} {conversion['source_currency']} / "
+                    f"{conversion['destination_amount']} {conversion['destination_currency']})"
+                )
+                return jsonify({
+                    'success': True,
+                    'message': resp.message,
+                    'tx_id': resp.transaction_id,
+                    'conversion': conversion,
+                })
             _log_local_event('failure', 'Transferencia local fallida', resp.message)
-            return jsonify({'success': False, 'message': resp.message}), 400
+            return jsonify({'success': False, 'message': resp.message, 'conversion': conversion}), 400
 
-        success, message, tx_id = execute_interbank_transfer(
+        success, message, tx_id, conversion = execute_interbank_transfer(
             source_bank, source_account, dest_bank, dest_account, amount, description)
         if success:
             transactions_today_count += 1
-            _log_local_event('transaction', 'Transferencia interbancaria completada', f'{source_account} -> {dest_account} ({amount})')
-            return jsonify({'success': True, 'message': message, 'tx_id': tx_id})
+            _log_local_event(
+                'transaction',
+                'Transferencia interbancaria completada',
+                f"{source_account} -> {dest_account} "
+                f"({conversion['source_amount']} {conversion['source_currency']} / "
+                f"{conversion['destination_amount']} {conversion['destination_currency']})"
+            )
+            return jsonify({'success': True, 'message': message, 'tx_id': tx_id, 'conversion': conversion})
         _log_local_event('failure', 'Transferencia interbancaria fallida', message)
-        return jsonify({'success': False, 'message': message, 'tx_id': tx_id}), 400
+        return jsonify({'success': False, 'message': message, 'tx_id': tx_id, 'conversion': conversion}), 400
     except grpc.RpcError as e:
         message = f'Error del servicio bancario: {e.code().name}'
         _log_local_event('failure', 'Error RPC en transferencia', message)
@@ -504,10 +830,84 @@ def api_transfer():
         _log_local_event('failure', 'Error en transferencia', message)
         return jsonify({'success': False, 'message': message}), 500
 
+
+@app.route('/api/account-operation', methods=['POST'])
+def api_account_operation():
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+
+    data = request.get_json(silent=True) or {}
+    operation = (data.get('operation') or '').strip().lower()
+    account_id = (data.get('account_id') or '').strip().upper()
+
+    if operation not in ('deposit', 'withdraw'):
+        return jsonify({'success': False, 'message': 'Operación inválida'}), 400
+    if not account_id:
+        return jsonify({'success': False, 'message': 'Selecciona una cuenta'}), 400
+
+    try:
+        amount = float(data.get('amount'))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'El monto debe ser numérico'}), 400
+
+    if amount <= 0:
+        return jsonify({'success': False, 'message': 'El monto debe ser mayor que cero'}), 400
+
+    bank = bank_from_account(account_id)
+    if bank not in BANKS:
+        return jsonify({'success': False, 'message': 'No se pudo identificar el banco de la cuenta'}), 400
+
+    if not _account_belongs_to_session(account_id):
+        return jsonify({'success': False, 'message': 'No puedes operar una cuenta que no pertenece al cliente autenticado'}), 403
+
+    try:
+        snapshot = _get_account_snapshot(bank, account_id)
+        stub = get_stub(bank)
+        request_pb = bank_pb2.TransactionRequest(account_id=account_id, amount=amount)
+        if operation == 'deposit':
+            resp = stub.Deposit(request_pb, timeout=5)
+            operation_text = 'Depósito'
+        else:
+            resp = stub.Withdraw(request_pb, timeout=5)
+            operation_text = 'Retiro'
+
+        if not resp.success:
+            _log_local_event('failure', f'{operation_text} rechazado', resp.message)
+            return jsonify({'success': False, 'message': resp.message}), 400
+
+        _log_local_event(
+            'transaction',
+            f'{operation_text} completado',
+            f"{account_id} · {snapshot['currency']} {amount:,.2f}"
+        )
+        return jsonify({
+            'success': True,
+            'message': resp.message,
+            'operation': operation,
+            'account_id': account_id,
+            'bank': bank,
+            'bank_label': BANK_LABELS.get(bank, bank.capitalize()),
+            'currency': snapshot['currency'],
+            'amount': round(amount, 2),
+            'new_balance': round(float(resp.new_balance), 2),
+            'new_balance_text': _format_money(snapshot['currency'], float(resp.new_balance)),
+        })
+    except grpc.RpcError as e:
+        message = f'Error del servicio bancario: {e.code().name}'
+        _log_local_event('failure', 'Error RPC en operación de cuenta', message)
+        return jsonify({'success': False, 'message': message}), 503
+    except Exception as e:
+        message = f'Error inesperado: {e}'
+        _log_local_event('failure', 'Error en operación de cuenta', message)
+        return jsonify({'success': False, 'message': message}), 500
+
 @app.route('/coordination/data')
 def coordination_data():
     if 'user' not in session:
         return jsonify({"error": "No autorizado"}), 401
+    forbidden = _client_forbidden_json()
+    if forbidden:
+        return forbidden
     nodes, _ = get_cluster_state()
     bank_name_map = {"peru": 3, "chile": 2, "colombia": 1}
     for node in nodes:
@@ -526,6 +926,11 @@ def coordination_data():
 
 @app.route('/api/events')
 def api_events():
+    if 'user' not in session:
+        return jsonify({"error": "No autorizado"}), 401
+    forbidden = _client_forbidden_json()
+    if forbidden:
+        return forbidden
     all_events = list(local_event_log)
     for bank in BANKS:
         try:
@@ -577,6 +982,11 @@ def _trigger_election_on_active_nodes(exclude_bank=None):
 
 @app.route('/api/force-election', methods=['POST'])
 def force_election():
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    forbidden = _client_forbidden_json()
+    if forbidden:
+        return forbidden
     data = request.get_json(silent=True) or {}
     target_node = data.get('node')
     if target_node:
@@ -596,6 +1006,11 @@ def force_election():
 
 @app.route('/api/node/<path:node_id>/toggle', methods=['POST'])
 def toggle_node(node_id):
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    forbidden = _client_forbidden_json()
+    if forbidden:
+        return forbidden
     from urllib.parse import unquote
     node_id = unquote(node_id)
     bank = _bank_from_node_label(node_id)
@@ -674,6 +1089,11 @@ def toggle_node(node_id):
 
 @app.route('/api/export-logs')
 def export_logs():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    forbidden = _client_forbidden_json()
+    if forbidden:
+        return forbidden
     lines = []
     for evt in local_event_log:
         lines.append(f"[LOCAL][{evt['timestamp']}] {evt['title']}: {evt['description']}")
