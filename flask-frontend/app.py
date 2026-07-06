@@ -1,4 +1,8 @@
+import sys
 import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import time
 import grpc
 from datetime import datetime, timezone
@@ -10,8 +14,9 @@ from bank_client import (
     get_all_accounts_for_user, get_accounts_by_bank, get_all_transactions,
     get_stub, BANKS, BANK_LABELS, BANK_PREFIXES, bank_from_account
 )
-import bank_pb2
-import bank_pb2_grpc
+import shared.bank_pb2 as bank_pb2
+import shared.bank_pb2_grpc as bank_pb2_grpc
+from shared.exchange import EXCHANGE_RATES, convert_amount
 from two_phase_commit import execute_interbank_transfer
 from bully import get_cluster_state
 import requests as http_requests
@@ -27,15 +32,6 @@ local_event_log = []
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
 
-# Tipo de cambio interno del sistema.
-# Base: 1 USD = X moneda local. Fijo para que el entorno sea reproducible.
-EXCHANGE_RATES = {
-    "USD": 1.0,
-    "PEN": 3.75,
-    "CLP": 950.0,
-    "COP": 4000.0,
-}
-
 # Usuarios de prueba para acceso de clientes.
 # En una versión con BD, esto pasaría a una tabla de usuarios con hash de contraseña.
 CLIENT_CREDENTIALS = {
@@ -48,16 +44,7 @@ CLIENT_CREDENTIALS = {
 }
 
 def _convert_amount(amount, source_currency, dest_currency):
-    source_currency = (source_currency or "").upper()
-    dest_currency = (dest_currency or "").upper()
-    if source_currency == dest_currency:
-        return round(float(amount), 2), 1.0
-    if source_currency not in EXCHANGE_RATES or dest_currency not in EXCHANGE_RATES:
-        raise ValueError(f"Moneda no soportada: {source_currency} -> {dest_currency}")
-    usd_amount = float(amount) / EXCHANGE_RATES[source_currency]
-    converted = usd_amount * EXCHANGE_RATES[dest_currency]
-    exchange_rate = EXCHANGE_RATES[dest_currency] / EXCHANGE_RATES[source_currency]
-    return round(converted, 2), round(exchange_rate, 6)
+    return convert_amount(amount, source_currency, dest_currency)
 
 def _get_account_snapshot(bank, account_id):
     stub = get_stub(bank)

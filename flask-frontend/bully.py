@@ -1,7 +1,13 @@
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import grpc
-import bank_pb2
-import bank_pb2_grpc
+import shared.bank_pb2 as bank_pb2
+import shared.bank_pb2_grpc as bank_pb2_grpc
 from bank_client import BANKS, get_stub
+
 
 def get_cluster_state():
     nodes = []
