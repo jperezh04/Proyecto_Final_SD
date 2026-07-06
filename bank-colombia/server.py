@@ -3,11 +3,18 @@ from concurrent import futures
 import bank_pb2
 import bank_pb2_grpc
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
 import threading
 import time
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("bank.colombia")
 
 # ── Prometheus ────────────────────────────────────────────────────────────────
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
@@ -173,7 +180,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             stub = bank_pb2_grpc.BankServiceStub(channel)
             resp = stub.Heartbeat(bank_pb2.HeartbeatRequest(node_id=str(self.node_id)), timeout=1)
             return resp.alive
-        except Exception:
+        except grpc.RpcError as exc:
+            logger.debug("Heartbeat a peer %s (%s) falló: %s", peer_id, address, exc.code().name)
             return False
 
     def _send_election(self, peer_id, address):
@@ -182,7 +190,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             stub = bank_pb2_grpc.BankServiceStub(channel)
             resp = stub.Election(bank_pb2.ElectionRequest(candidate_id=str(self.node_id)), timeout=1)
             return resp.acknowledged
-        except Exception:
+        except grpc.RpcError as exc:
+            logger.debug("Election a peer %s (%s) falló: %s", peer_id, address, exc.code().name)
             return False
 
     def _send_coordinator(self, peer_id, address):
@@ -190,8 +199,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             channel = grpc.insecure_channel(address)
             stub = bank_pb2_grpc.BankServiceStub(channel)
             stub.Coordinator(bank_pb2.CoordinatorRequest(leader_id=str(self.node_id)), timeout=1)
-        except Exception:
-            pass
+        except grpc.RpcError as exc:
+            logger.debug("Coordinator a peer %s (%s) falló: %s", peer_id, address, exc.code().name)
 
     def _heartbeat_loop(self):
         while True:
@@ -521,6 +530,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=True)
         except Exception:
+            logger.exception("Error en PREPARE de %s (cuenta %s); votando NO", tx_id, acc_id)
+            self.pending_2pc.pop(tx_id, None)
             lock.release()
             twopc_duration.labels(node=NODE_LABEL, phase="prepare").observe(time.time() - start)
             return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
@@ -563,6 +574,8 @@ class BankService(bank_pb2_grpc.BankServiceServicer):
             twopc_duration.labels(node=NODE_LABEL, phase="commit").observe(time.time() - start)
             return bank_pb2.CommitResponse(success=True)
         except Exception:
+            logger.exception("Error aplicando COMMIT de %s (cuenta %s); posible estado inconsistente",
+                             tx_id, pending.get("account_id"))
             pending["lock"].release()
             del self.pending_2pc[tx_id]
             remove_pending(tx_id)
