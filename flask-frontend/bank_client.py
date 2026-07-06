@@ -1,7 +1,10 @@
+import logging
 import os
 import grpc
 import bank_pb2
 import bank_pb2_grpc
+
+logger = logging.getLogger("flask-frontend.bank_client")
 
 BANKS = {
     "peru": os.getenv("BANK_PERU_ADDR", "localhost:50051"),
@@ -65,8 +68,11 @@ def get_accounts_by_bank(owner=""):
             stub = get_stub(bank)
             resp = stub.ListAccounts(bank_pb2.AccountsRequest(owner=owner or ""), timeout=2)
             grouped[bank] = [_account_to_dict(bank, account) for account in resp.accounts]
-        except Exception as e:
-            print(f"Error obteniendo cuentas de {bank}: {e}")
+        except grpc.RpcError as e:
+            logger.warning("Error obteniendo cuentas de %s: %s", bank, e.code().name)
+            grouped[bank] = []
+        except Exception:
+            logger.exception("Error inesperado obteniendo cuentas de %s", bank)
             grouped[bank] = []
     return grouped
 
@@ -109,8 +115,10 @@ def get_all_transactions(account_id=""):
             stub = get_stub(bank)
             resp = stub.GetTransactions(bank_pb2.TransactionsRequest(account_id=account_id or ""), timeout=2)
             raw.extend(_tx_to_dict(tx) for tx in resp.transactions)
-        except Exception as e:
-            print(f"Error obteniendo movimientos de {bank}: {e}")
+        except grpc.RpcError as e:
+            logger.warning("Error obteniendo movimientos de %s: %s", bank, e.code().name)
+        except Exception:
+            logger.exception("Error inesperado obteniendo movimientos de %s", bank)
 
     grouped = {}
     standalone = []

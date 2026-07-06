@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import grpc
@@ -17,6 +18,12 @@ from bully import get_cluster_state
 import requests as http_requests
 
 load_dotenv()
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("flask-frontend")
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'clave-por-defecto')
@@ -175,8 +182,10 @@ def check_bank_health():
             latency = (time.time() - start) * 1000
             healthy += 1
             total_latency += latency
+        except grpc.RpcError as exc:
+            logger.warning("Health check falló para banco %s: %s", bank, exc.code().name)
         except Exception:
-            pass
+            logger.exception("Error inesperado en health check del banco %s", bank)
     avg_latency = round(total_latency / healthy) if healthy > 0 else 0
     return healthy, avg_latency
 
@@ -294,17 +303,25 @@ def _build_clients_summary(accounts):
     return clients, stats, requirement_status
 
 def _account_exists_in_bank(bank, account_id):
+    """Indica si la cuenta existe en el banco.
+
+    Solo un NOT_FOUND explícito significa "no existe". Cualquier otro error RPC
+    (banco caído, timeout) se propaga para no confundir una caída del servicio
+    con una cuenta inexistente.
+    """
     try:
         _get_account_snapshot(bank, account_id)
         return True
-    except Exception:
-        return False
+    except grpc.RpcError as exc:
+        if exc.code() == grpc.StatusCode.NOT_FOUND:
+            return False
+        raise
 
 def _validate_transfer_payload(data):
     required = ["source_bank", "source_account", "dest_bank", "dest_account", "amount"]
     missing = [field for field in required if field not in data or data.get(field) is None or data.get(field) == ""]
     if missing:
-        return None, f"Faltan campos: {', '.join(missing)}"
+        return None, f"Faltan campos: {', '.join(missing)}", 400
 
     source_bank = data["source_bank"]
     dest_bank = data["dest_bank"]
@@ -312,30 +329,33 @@ def _validate_transfer_payload(data):
     dest_account = data["dest_account"].strip().upper()
 
     if source_bank not in BANKS or dest_bank not in BANKS:
-        return None, "Banco seleccionado inválido"
+        return None, "Banco seleccionado inválido", 400
 
     try:
         amount = float(data["amount"])
     except (TypeError, ValueError):
-        return None, "El monto debe ser numérico"
+        return None, "El monto debe ser numérico", 400
 
     if amount <= 0:
-        return None, "El monto debe ser mayor que cero"
+        return None, "El monto debe ser mayor que cero", 400
 
     if source_account == dest_account:
-        return None, "La cuenta origen y destino deben ser distintas"
+        return None, "La cuenta origen y destino deben ser distintas", 400
 
     if bank_from_account(source_account) != source_bank:
-        return None, "La cuenta origen no pertenece al banco seleccionado"
+        return None, "La cuenta origen no pertenece al banco seleccionado", 400
 
     if bank_from_account(dest_account) != dest_bank:
-        return None, "La cuenta destino no pertenece al banco seleccionado"
+        return None, "La cuenta destino no pertenece al banco seleccionado", 400
 
-    if not _account_exists_in_bank(source_bank, source_account):
-        return None, "Cuenta origen no encontrada"
-
-    if not _account_exists_in_bank(dest_bank, dest_account):
-        return None, "Cuenta destino no encontrada"
+    try:
+        if not _account_exists_in_bank(source_bank, source_account):
+            return None, "Cuenta origen no encontrada", 400
+        if not _account_exists_in_bank(dest_bank, dest_account):
+            return None, "Cuenta destino no encontrada", 400
+    except grpc.RpcError as exc:
+        logger.warning("No se pudo validar cuentas por error de servicio: %s", exc.code().name)
+        return None, f"Servicio bancario no disponible: {exc.code().name}", 503
 
     return {
         "source_bank": source_bank,
@@ -344,7 +364,7 @@ def _validate_transfer_payload(data):
         "dest_account": dest_account,
         "amount": amount,
         "description": (data.get("description") or "Transferencia desde el frontend").strip(),
-    }, None
+    }, None, 200
 
 # ── Routes ──────────────────────────────────────────────────────────────────
 
@@ -576,6 +596,7 @@ def _prom_query(query):
             return float(results[0]["value"][1])
         return None
     except Exception:
+        logger.debug("Consulta a Prometheus falló: %s", query, exc_info=True)
         return None
 
 def _prom_query_all(query):
@@ -586,6 +607,7 @@ def _prom_query_all(query):
         data = r.json()
         return data.get("data", {}).get("result", [])
     except Exception:
+        logger.debug("Consulta múltiple a Prometheus falló: %s", query, exc_info=True)
         return []
 
 @app.route('/monitoring')
@@ -681,8 +703,10 @@ def monitoring():
                     "level": level,
                     "message": f"[{bank.upper()}] {evt.title}: {evt.description}"
                 })
+        except grpc.RpcError as exc:
+            logger.warning("No se pudieron obtener eventos de %s: %s", bank, exc.code().name)
         except Exception:
-            pass
+            logger.exception("Error inesperado obteniendo eventos de %s", bank)
     logs.sort(key=lambda x: x["timestamp"], reverse=True)
     logs = logs[:20]
 
@@ -762,10 +786,10 @@ def api_transfer():
         return jsonify({'success': False, 'message': 'No autorizado'}), 401
 
     data = request.get_json(silent=True) or {}
-    payload, error_msg = _validate_transfer_payload(data)
+    payload, error_msg, status_code = _validate_transfer_payload(data)
     if error_msg:
         _log_local_event('failure', 'Transferencia rechazada', error_msg)
-        return jsonify({'success': False, 'message': error_msg}), 400
+        return jsonify({'success': False, 'message': error_msg}), status_code
 
     source_bank = payload['source_bank']
     source_account = payload['source_account']
@@ -821,12 +845,19 @@ def api_transfer():
             return jsonify({'success': True, 'message': message, 'tx_id': tx_id, 'conversion': conversion})
         _log_local_event('failure', 'Transferencia interbancaria fallida', message)
         return jsonify({'success': False, 'message': message, 'tx_id': tx_id, 'conversion': conversion}), 400
+    except ValueError as e:
+        message = str(e)
+        logger.warning("Transferencia rechazada por datos inválidos: %s", message)
+        _log_local_event('failure', 'Transferencia rechazada', message)
+        return jsonify({'success': False, 'message': message}), 400
     except grpc.RpcError as e:
         message = f'Error del servicio bancario: {e.code().name}'
+        logger.warning("Error RPC en transferencia %s -> %s: %s", source_account, dest_account, e.code().name)
         _log_local_event('failure', 'Error RPC en transferencia', message)
         return jsonify({'success': False, 'message': message}), 503
     except Exception as e:
         message = f'Error inesperado en transferencia: {e}'
+        logger.exception("Error inesperado en transferencia %s -> %s", source_account, dest_account)
         _log_local_event('failure', 'Error en transferencia', message)
         return jsonify({'success': False, 'message': message}), 500
 
@@ -894,10 +925,12 @@ def api_account_operation():
         })
     except grpc.RpcError as e:
         message = f'Error del servicio bancario: {e.code().name}'
+        logger.warning("Error RPC en operación %s sobre %s: %s", operation, account_id, e.code().name)
         _log_local_event('failure', 'Error RPC en operación de cuenta', message)
         return jsonify({'success': False, 'message': message}), 503
     except Exception as e:
         message = f'Error inesperado: {e}'
+        logger.exception("Error inesperado en operación %s sobre %s", operation, account_id)
         _log_local_event('failure', 'Error en operación de cuenta', message)
         return jsonify({'success': False, 'message': message}), 500
 
@@ -943,8 +976,10 @@ def api_events():
                     "title": evt.title,
                     "description": evt.description
                 })
+        except grpc.RpcError as exc:
+            logger.warning("No se pudieron obtener eventos de %s: %s", bank, exc.code().name)
         except Exception:
-            pass
+            logger.exception("Error inesperado obteniendo eventos de %s", bank)
     seen = set()
     unique_events = []
     for e in sorted(all_events, key=lambda x: x.get('timestamp', ''), reverse=True):
@@ -978,7 +1013,7 @@ def _trigger_election_on_active_nodes(exclude_bank=None):
             stub = get_stub(bank)
             stub.Election(bank_pb2.ElectionRequest(candidate_id="0"), timeout=2)
         except Exception:
-            pass
+            logger.warning("No se pudo activar elección en %s", bank, exc_info=True)
 
 @app.route('/api/force-election', methods=['POST'])
 def force_election():
@@ -1035,6 +1070,7 @@ def toggle_node(node_id):
         stub.SetNodeStatus(bank_pb2.NodeStatusRequest(paused=new_pause), timeout=2)
     except Exception as e:
         grpc_error = str(e)
+        logger.warning("No se pudo aplicar %s en el nodo gRPC %s: %s", action, bank, e)
 
     # ── 2. Bully logic on pause ──────────────────────────────────────────────
     if new_pause and was_leader:
@@ -1062,7 +1098,7 @@ def toggle_node(node_id):
             stub = get_stub(bank)
             stub.Election(bank_pb2.ElectionRequest(candidate_id=str(node_id_int)), timeout=2)
         except Exception:
-            pass
+            logger.warning("No se pudo anunciar el regreso del nodo %s", bank, exc_info=True)
 
         # También notificamos a los demás nodos activos con el ID real del que vuelve,
         # para que los de menor prioridad se rindan correctamente.
@@ -1075,7 +1111,7 @@ def toggle_node(node_id):
                 stub2 = get_stub(other_bank)
                 stub2.Election(bank_pb2.ElectionRequest(candidate_id=str(node_id_int)), timeout=2)
             except Exception:
-                pass
+                logger.warning("No se pudo notificar el regreso del nodo a %s", other_bank, exc_info=True)
 
         _log_local_event("sync",
                         f"{node_id} reanudado — volviendo al clúster",
@@ -1105,6 +1141,7 @@ def export_logs():
             for evt in resp.events:
                 lines.append(f"[{evt.timestamp}] {evt.title}: {evt.description}")
         except Exception:
+            logger.warning("No se pudieron exportar logs de %s", bank, exc_info=True)
             lines.append(f"--- {bank} (no disponible) ---")
     content = "\n".join(lines)
     return Response(content, mimetype="text/plain",

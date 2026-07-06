@@ -1,7 +1,11 @@
+import logging
+
 import grpc
 import bank_pb2
 import bank_pb2_grpc
 from bank_client import BANKS, get_stub
+
+logger = logging.getLogger("flask-frontend.bully")
 
 def get_cluster_state():
     nodes = []
@@ -28,7 +32,21 @@ def get_cluster_state():
                 "topology_x": "50%" if node_id == 3 else ("20%" if node_id == 2 else "80%"),
                 "topology_y": "20%" if node_id == 3 else ("50%" if node_id == 2 else "50%")
             })
+        except grpc.RpcError as exc:
+            logger.warning("Nodo %s inaccesible (heartbeat): %s", bank_name, exc.code().name)
+            node_id = bank_ids[bank_name]
+            nodes.append({
+                "name": f"Nodo #{node_id} ({bank_name.capitalize()})",
+                "short_name": f"N{node_id}",
+                "state": "DISCONNECTED",
+                "priority": node_id,
+                "uptime": "-",
+                "topology_x": "50%" if node_id == 3 else ("20%" if node_id == 2 else "80%"),
+                "topology_y": "20%" if node_id == 3 else ("50%" if node_id == 2 else "50%")
+            })
+            continue
         except Exception:
+            logger.exception("Error inesperado consultando el nodo %s", bank_name)
             node_id = bank_ids[bank_name]
             nodes.append({
                 "name": f"Nodo #{node_id} ({bank_name.capitalize()})",
