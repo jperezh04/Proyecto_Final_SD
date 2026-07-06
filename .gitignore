@@ -21,6 +21,8 @@ bank-colombia/data/accounts/*.json
 # === gRPC generados (si prefieres ignorarlos) ===
 *_pb2.py
 *_pb2_grpc.py
+!shared/bank_pb2.py
+!shared/bank_pb2_grpc.py
 
 # === IDE y sistema ===
 .vscode/

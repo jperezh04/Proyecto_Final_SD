@@ -1,0 +1,510 @@
+import grpc
+from concurrent import futures
+import sys
+import os
+import uuid
+from datetime import datetime, timezone
+import threading
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import shared.bank_pb2 as bank_pb2
+import shared.bank_pb2_grpc as bank_pb2_grpc
+from shared.exchange import convert_amount
+from shared.persistence import (
+    load_account, list_accounts, save_account,
+    save_transaction, list_transactions,
+    save_pending, remove_pending,
+)
+from shared.metrics import create_metrics
+from prometheus_client import start_http_server
+
+
+class BankService(bank_pb2_grpc.BankServiceServicer):
+    def __init__(self, config):
+        self.node_label = config["node_label"]
+        self.node_id_str = config["node_id"]
+        self.node_id = config["numeric_id"]
+        self.grpc_port = config["grpc_port"]
+        self.metrics_port = config["metrics_port"]
+        self.peers = config["peers"]
+
+        data_dir = os.path.join(config["data_dir"], "data")
+        self.accounts_dir = os.path.join(data_dir, "accounts")
+        self.pending_dir = os.path.join(data_dir, "pending")
+        self.transactions_dir = os.path.join(data_dir, "transactions")
+        for directory in (self.accounts_dir, self.pending_dir, self.transactions_dir):
+            os.makedirs(directory, exist_ok=True)
+
+        self.tx_counter, self.twopc_duration, self.node_state_gauge = create_metrics(self.node_label)
+
+        self.leader_id = None
+        self.state = "FOLLOWER"
+        self.heartbeat_interval = 3
+        self.election_timeout = 6
+        self.last_heartbeat_from_leader = time.time()
+        self.election_lock = threading.Lock()
+        self._election_in_progress = False
+        self.pending_2pc = {}
+        self.account_locks = {}
+        self.global_lock = threading.Lock()
+        self.manual_pause = False
+        self.event_log = []
+
+        threading.Thread(target=self._startup, daemon=True).start()
+
+    def _log_event(self, type, title, description):
+        self.event_log.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "type": type,
+            "title": title,
+            "description": description
+        })
+
+    def _update_state_gauge(self):
+        if self.manual_pause:
+            self.node_state_gauge.labels(node=self.node_label).set(-1)
+        elif self.state == "LEADER":
+            self.node_state_gauge.labels(node=self.node_label).set(1)
+        else:
+            self.node_state_gauge.labels(node=self.node_label).set(0)
+
+    def _startup(self):
+        time.sleep(1)
+        if self.node_id == max(list(self.peers.keys()) + [self.node_id]):
+            self.become_leader()
+        else:
+            self.start_election()
+
+    def _send_heartbeat(self, peer_id, address):
+        try:
+            channel = grpc.insecure_channel(address)
+            stub = bank_pb2_grpc.BankServiceStub(channel)
+            resp = stub.Heartbeat(bank_pb2.HeartbeatRequest(node_id=str(self.node_id)), timeout=1)
+            return resp.alive
+        except Exception:
+            return False
+
+    def _send_election(self, peer_id, address):
+        try:
+            channel = grpc.insecure_channel(address)
+            stub = bank_pb2_grpc.BankServiceStub(channel)
+            resp = stub.Election(bank_pb2.ElectionRequest(candidate_id=str(self.node_id)), timeout=1)
+            return resp.acknowledged
+        except Exception:
+            return False
+
+    def _send_coordinator(self, peer_id, address):
+        try:
+            channel = grpc.insecure_channel(address)
+            stub = bank_pb2_grpc.BankServiceStub(channel)
+            stub.Coordinator(bank_pb2.CoordinatorRequest(leader_id=str(self.node_id)), timeout=1)
+        except Exception:
+            pass
+
+    def _heartbeat_loop(self):
+        while True:
+            time.sleep(self.heartbeat_interval)
+            if self.manual_pause:
+                continue
+            if self.state == "LEADER":
+                for peer_id, addr in self.peers.items():
+                    self._send_heartbeat(peer_id, addr)
+
+    def _election_check_loop(self):
+        while True:
+            time.sleep(1)
+            if self.manual_pause:
+                continue
+            if self.state == "FOLLOWER":
+                if time.time() - self.last_heartbeat_from_leader > self.election_timeout:
+                    print(f"[{self.node_id}] Leader timeout. Starting election.")
+                    self.start_election()
+
+    def start_election(self):
+        with self.election_lock:
+            if self._election_in_progress or self.state == "LEADER":
+                return
+            self._election_in_progress = True
+        self.state = "CANDIDATE"
+        self._update_state_gauge()
+        self._log_event("election", f"Node {self.node_id} started election", "Heartbeat timeout detected")
+        print(f"[{self.node_id}] Starting election.")
+        higher_nodes = [nid for nid in self.peers if nid > self.node_id]
+        if not higher_nodes:
+            self.become_leader()
+            with self.election_lock:
+                self._election_in_progress = False
+            return
+        for nid in sorted(higher_nodes, reverse=True):
+            if self._send_election(nid, self.peers[nid]):
+                print(f"[{self.node_id}] Higher node {nid} responded. Waiting for coordinator.")
+                with self.election_lock:
+                    self._election_in_progress = False
+                return
+        self.become_leader()
+        with self.election_lock:
+            self._election_in_progress = False
+
+    def become_leader(self):
+        self.state = "LEADER"
+        self.leader_id = self.node_id
+        self.last_heartbeat_from_leader = time.time()
+        self._update_state_gauge()
+        self._log_event("election", f"Node {self.node_id} became LEADER", "Coordinator broadcast sent")
+        print(f"[{self.node_id}] Became COORDINATOR.")
+        for nid, addr in self.peers.items():
+            if nid != self.node_id:
+                self._send_coordinator(nid, addr)
+
+    # -- gRPC handlers --
+
+    def Heartbeat(self, request, context):
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            return bank_pb2.HeartbeatResponse()
+        if self.state != "LEADER":
+            self.last_heartbeat_from_leader = time.time()
+        return bank_pb2.HeartbeatResponse(alive=True, leader_id=str(self.leader_id) if self.leader_id else "")
+
+    def Election(self, request, context):
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            return bank_pb2.ElectionResponse()
+        candidate_id = int(request.candidate_id)
+        if candidate_id < self.node_id:
+            if not self._election_in_progress:
+                threading.Thread(target=self.start_election, daemon=True).start()
+            return bank_pb2.ElectionResponse(acknowledged=True)
+        elif candidate_id > self.node_id:
+            self.state = "FOLLOWER"
+            self.leader_id = None
+            with self.election_lock:
+                self._election_in_progress = False
+            self._update_state_gauge()
+            self._log_event("sync",
+                            f"Node {self.node_id} defers to Node {candidate_id}",
+                            "Higher-priority node re-joined; stepping down")
+            print(f"[{self.node_id}] Deferring to higher node {candidate_id}")
+            return bank_pb2.ElectionResponse(acknowledged=False)
+        else:
+            return bank_pb2.ElectionResponse(acknowledged=False)
+
+    def Coordinator(self, request, context):
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            return bank_pb2.CoordinatorResponse()
+        new_leader = int(request.leader_id)
+        self.leader_id = new_leader
+        self.state = "FOLLOWER"
+        self.last_heartbeat_from_leader = time.time()
+        with self.election_lock:
+            self._election_in_progress = False
+        self._update_state_gauge()
+        self._log_event("sync", f"Accepted new leader: Node {new_leader}", "Coordinator change acknowledged")
+        print(f"[{self.node_id}] New leader: {new_leader}")
+        return bank_pb2.CoordinatorResponse(accepted=True)
+
+    def GetEvents(self, request, context):
+        return bank_pb2.EventsResponse(
+            events=[bank_pb2.Event(**e) for e in self.event_log[-30:]]
+        )
+
+    def SetNodeStatus(self, request, context):
+        self.manual_pause = request.paused
+        estado = "paused" if self.manual_pause else "resumed"
+        self._update_state_gauge()
+        self._log_event("failure" if self.manual_pause else "sync",
+                        f"Node {self.node_id} {estado} manually",
+                        f"Manual override {'enabled' if self.manual_pause else 'disabled'}")
+        print(f"[{self.node_id}] Manual pause: {self.manual_pause}")
+        return bank_pb2.NodeStatusResponse(success=True, message=f"Nodo {self.node_id} {estado}")
+
+    def _get_lock(self, account_id):
+        with self.global_lock:
+            if account_id not in self.account_locks:
+                self.account_locks[account_id] = threading.Lock()
+            return self.account_locks[account_id]
+
+    def _reject_if_paused(self, context):
+        if self.manual_pause:
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
+            context.set_details("Nodo pausado")
+            return True
+        return False
+
+    def _account_proto(self, account):
+        return bank_pb2.Account(
+            account_id=account.get("account_id", ""),
+            owner=account.get("owner", ""),
+            balance=float(account.get("balance", 0)),
+            currency=account.get("currency", ""),
+            type=account.get("type", ""),
+            created_at=account.get("created_at", ""),
+            updated_at=account.get("updated_at", "")
+        )
+
+    def _transaction_proto(self, tx):
+        return bank_pb2.TransactionRecord(
+            transaction_id=tx.get("transaction_id", ""),
+            timestamp=tx.get("timestamp", ""),
+            type=tx.get("type", ""),
+            source_account=tx.get("source_account", ""),
+            dest_account=tx.get("dest_account", ""),
+            amount=float(tx.get("amount", 0)),
+            currency=tx.get("currency", ""),
+            description=tx.get("description", ""),
+            status=tx.get("status", ""),
+            bank_id=tx.get("bank_id", self.node_id_str)
+        )
+
+    def ListAccounts(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.AccountsResponse()
+        return bank_pb2.AccountsResponse(
+            accounts=[self._account_proto(a) for a in list_accounts(self.accounts_dir, request.owner)]
+        )
+
+    def GetTransactions(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransactionsResponse()
+        return bank_pb2.TransactionsResponse(
+            transactions=[self._transaction_proto(tx) for tx in list_transactions(self.transactions_dir, request.account_id)]
+        )
+
+    def GetBalance(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.BalanceResponse()
+        account = load_account(self.accounts_dir, request.account_id)
+        if not account:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details("Cuenta no encontrada")
+            return bank_pb2.BalanceResponse()
+        return bank_pb2.BalanceResponse(
+            account_id=request.account_id,
+            balance=account["balance"],
+            currency=account["currency"]
+        )
+
+    def Deposit(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransactionResponse(success=False, message="Nodo pausado")
+        if request.amount <= 0:
+            return bank_pb2.TransactionResponse(success=False, message="El monto debe ser mayor que cero")
+        lock = self._get_lock(request.account_id)
+        with lock:
+            account = load_account(self.accounts_dir, request.account_id)
+            if not account:
+                return bank_pb2.TransactionResponse(success=False, message="Cuenta no encontrada")
+            account["balance"] += request.amount
+            account["updated_at"] = datetime.now(timezone.utc).isoformat()
+            save_account(self.accounts_dir, request.account_id, account)
+            tx_id = str(uuid.uuid4())
+            save_transaction(self.transactions_dir, tx_id, {
+                "transaction_id": tx_id, "timestamp": account["updated_at"], "type": "deposit",
+                "source_account": "", "dest_account": request.account_id, "amount": request.amount,
+                "currency": account.get("currency", ""), "description": "Depósito",
+                "status": "exitosa", "bank_id": self.node_id_str
+            })
+            self._log_event("transaction", "Depósito completado", f"{request.account_id} +{request.amount} {account.get('currency', '')}")
+            self.tx_counter.labels(node=self.node_label, type="deposit").inc()
+            return bank_pb2.TransactionResponse(success=True, message="Depósito realizado correctamente", new_balance=account["balance"])
+
+    def Withdraw(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransactionResponse(success=False, message="Nodo pausado")
+        if request.amount <= 0:
+            return bank_pb2.TransactionResponse(success=False, message="El monto debe ser mayor que cero")
+        lock = self._get_lock(request.account_id)
+        with lock:
+            account = load_account(self.accounts_dir, request.account_id)
+            if not account:
+                return bank_pb2.TransactionResponse(success=False, message="Cuenta no encontrada")
+            if account["balance"] < request.amount:
+                return bank_pb2.TransactionResponse(success=False, message="Fondos insuficientes")
+            account["balance"] -= request.amount
+            account["updated_at"] = datetime.now(timezone.utc).isoformat()
+            save_account(self.accounts_dir, request.account_id, account)
+            tx_id = str(uuid.uuid4())
+            save_transaction(self.transactions_dir, tx_id, {
+                "transaction_id": tx_id, "timestamp": account["updated_at"], "type": "withdraw",
+                "source_account": request.account_id, "dest_account": "", "amount": request.amount,
+                "currency": account.get("currency", ""), "description": "Retiro",
+                "status": "exitosa", "bank_id": self.node_id_str
+            })
+            self._log_event("transaction", "Retiro completado", f"{request.account_id} -{request.amount} {account.get('currency', '')}")
+            self.tx_counter.labels(node=self.node_label, type="withdraw").inc()
+            return bank_pb2.TransactionResponse(success=True, message="Retiro realizado correctamente", new_balance=account["balance"])
+
+    def TransferLocal(self, request, context):
+        if self._reject_if_paused(context):
+            return bank_pb2.TransferResponse(success=False, message="Nodo pausado")
+        if request.amount <= 0:
+            return bank_pb2.TransferResponse(success=False, message="El monto debe ser mayor que cero")
+        if request.source_account == request.dest_account:
+            return bank_pb2.TransferResponse(success=False, message="La cuenta origen y destino deben ser distintas")
+        ids = sorted([request.source_account, request.dest_account])
+        lock1 = self._get_lock(ids[0])
+        lock2 = self._get_lock(ids[1])
+        with lock1, lock2:
+            src = load_account(self.accounts_dir, request.source_account)
+            dst = load_account(self.accounts_dir, request.dest_account)
+            if not src or not dst:
+                return bank_pb2.TransferResponse(success=False, message="Cuentas inválidas")
+            if src["balance"] < request.amount:
+                return bank_pb2.TransferResponse(success=False, message="Fondos insuficientes")
+
+            src_currency = src.get("currency", "")
+            dst_currency = dst.get("currency", "")
+            try:
+                destination_amount, exchange_rate = convert_amount(request.amount, src_currency, dst_currency)
+            except ValueError as exc:
+                return bank_pb2.TransferResponse(success=False, message=str(exc))
+
+            src["balance"] -= request.amount
+            dst["balance"] += destination_amount
+            now = datetime.now(timezone.utc).isoformat()
+            src["updated_at"] = now
+            dst["updated_at"] = now
+            save_account(self.accounts_dir, request.source_account, src)
+            save_account(self.accounts_dir, request.dest_account, dst)
+            tx_id = str(uuid.uuid4())
+
+            description = request.description or "Transferencia local"
+            if src_currency != dst_currency:
+                description = (
+                    f"{description} | Conversión aplicada: "
+                    f"{request.amount:,.2f} {src_currency} -> {destination_amount:,.2f} {dst_currency} "
+                    f"(TC {exchange_rate})"
+                )
+
+            save_transaction(self.transactions_dir, tx_id, {
+                "transaction_id": tx_id, "timestamp": now, "type": "transfer_local",
+                "source_account": request.source_account, "dest_account": request.dest_account,
+                "amount": request.amount, "currency": src_currency,
+                "destination_amount": destination_amount, "destination_currency": dst_currency,
+                "exchange_rate": exchange_rate,
+                "description": description,
+                "status": "exitosa", "bank_id": self.node_id_str
+            })
+            self._log_event("transaction", "Transferencia local completada",
+                            f"{request.source_account} -> {request.dest_account} "
+                            f"({request.amount:,.2f} {src_currency} / {destination_amount:,.2f} {dst_currency})")
+            self.tx_counter.labels(node=self.node_label, type="transfer_local").inc()
+            return bank_pb2.TransferResponse(success=True, message="Transferencia local realizada correctamente", transaction_id=tx_id)
+
+    def Prepare(self, request, context):
+        start = time.time()
+        if self._reject_if_paused(context):
+            return bank_pb2.PrepareResponse(transaction_id=request.transaction_id, vote=False)
+        tx_id = request.transaction_id
+        acc_id = request.account_id
+        amount = request.amount
+        op_type = request.operation_type
+        if amount <= 0 or op_type not in ("debit", "credit"):
+            self.twopc_duration.labels(node=self.node_label, phase="prepare").observe(time.time() - start)
+            return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
+        lock = self._get_lock(acc_id)
+        if not lock.acquire(blocking=False):
+            self.twopc_duration.labels(node=self.node_label, phase="prepare").observe(time.time() - start)
+            return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
+        try:
+            account = load_account(self.accounts_dir, acc_id)
+            if not account:
+                lock.release()
+                self.twopc_duration.labels(node=self.node_label, phase="prepare").observe(time.time() - start)
+                return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
+            if op_type == "debit" and account["balance"] < amount:
+                lock.release()
+                self.twopc_duration.labels(node=self.node_label, phase="prepare").observe(time.time() - start)
+                return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
+            self.pending_2pc[tx_id] = {
+                "account_id": acc_id, "amount": amount, "op_type": op_type,
+                "lock": lock, "currency": account.get("currency", "")
+            }
+            save_pending(self.pending_dir, tx_id, {
+                "account_id": acc_id, "amount": amount, "op_type": op_type,
+                "currency": account.get("currency", ""),
+                "status": "PREPARED", "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+            self.tx_counter.labels(node=self.node_label, type="prepare").inc()
+            self.twopc_duration.labels(node=self.node_label, phase="prepare").observe(time.time() - start)
+            return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=True)
+        except Exception:
+            lock.release()
+            self.twopc_duration.labels(node=self.node_label, phase="prepare").observe(time.time() - start)
+            return bank_pb2.PrepareResponse(transaction_id=tx_id, vote=False)
+
+    def Commit(self, request, context):
+        start = time.time()
+        if self._reject_if_paused(context):
+            return bank_pb2.CommitResponse(success=False)
+        tx_id = request.transaction_id
+        pending = self.pending_2pc.get(tx_id)
+        if not pending:
+            return bank_pb2.CommitResponse(success=False)
+        try:
+            account = load_account(self.accounts_dir, pending["account_id"])
+            if not account:
+                pending["lock"].release()
+                del self.pending_2pc[tx_id]
+                remove_pending(self.pending_dir, tx_id)
+                return bank_pb2.CommitResponse(success=False)
+            if pending["op_type"] == "debit":
+                account["balance"] -= pending["amount"]
+            elif pending["op_type"] == "credit":
+                account["balance"] += pending["amount"]
+            account["updated_at"] = datetime.now(timezone.utc).isoformat()
+            save_account(self.accounts_dir, pending["account_id"], account)
+            save_transaction(self.transactions_dir, tx_id, {
+                "transaction_id": tx_id, "timestamp": account["updated_at"],
+                "type": f"2pc_{pending['op_type']}",
+                "source_account": pending["account_id"] if pending["op_type"] == "debit" else "",
+                "dest_account": pending["account_id"] if pending["op_type"] == "credit" else "",
+                "amount": pending["amount"], "currency": account.get("currency", pending.get("currency", "")),
+                "description": "Interbank transfer via 2PC",
+                "status": "exitosa", "bank_id": self.node_id_str
+            })
+            self._log_event("transaction", "Confirmación 2PC aplicada", f"{pending['op_type']} {pending['account_id']} ({pending['amount']} {account.get('currency', '')})")
+            pending["lock"].release()
+            del self.pending_2pc[tx_id]
+            remove_pending(self.pending_dir, tx_id)
+            self.tx_counter.labels(node=self.node_label, type="commit").inc()
+            self.twopc_duration.labels(node=self.node_label, phase="commit").observe(time.time() - start)
+            return bank_pb2.CommitResponse(success=True)
+        except Exception:
+            pending["lock"].release()
+            del self.pending_2pc[tx_id]
+            remove_pending(self.pending_dir, tx_id)
+            return bank_pb2.CommitResponse(success=False)
+
+    def Abort(self, request, context):
+        start = time.time()
+        if self._reject_if_paused(context):
+            return bank_pb2.AbortResponse(success=False)
+        tx_id = request.transaction_id
+        pending = self.pending_2pc.get(tx_id)
+        if not pending:
+            return bank_pb2.AbortResponse(success=True)
+        pending["lock"].release()
+        del self.pending_2pc[tx_id]
+        remove_pending(self.pending_dir, tx_id)
+        self.tx_counter.labels(node=self.node_label, type="abort").inc()
+        self.twopc_duration.labels(node=self.node_label, phase="abort").observe(time.time() - start)
+        return bank_pb2.AbortResponse(success=True)
+
+
+def create_and_serve(config):
+    start_http_server(config["metrics_port"])
+    print(f"Métricas Prometheus expuestas en http://localhost:{config['metrics_port']}")
+
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    service = BankService(config)
+    bank_pb2_grpc.add_BankServiceServicer_to_server(service, server)
+    server.add_insecure_port(f"[::]:{config['grpc_port']}")
+    print(f"Banco {config['node_id'].capitalize()} (gRPC) corriendo en puerto {config['grpc_port']}")
+    threading.Thread(target=service._heartbeat_loop, daemon=True).start()
+    threading.Thread(target=service._election_check_loop, daemon=True).start()
+    server.start()
+    server.wait_for_termination()

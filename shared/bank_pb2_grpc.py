@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import bank_pb2 as bank__pb2
+from . import bank_pb2 as bank__pb2
 
 GRPC_GENERATED_VERSION = '1.81.1'
 GRPC_VERSION = grpc.__version__

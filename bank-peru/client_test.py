@@ -1,6 +1,11 @@
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import grpc
-import bank_pb2
-import bank_pb2_grpc
+import shared.bank_pb2 as bank_pb2
+import shared.bank_pb2_grpc as bank_pb2_grpc
 
 channel = grpc.insecure_channel("localhost:50051")
 stub = bank_pb2_grpc.BankServiceStub(channel)
